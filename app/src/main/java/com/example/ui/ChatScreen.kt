@@ -26,6 +26,7 @@ import com.example.ui.components.LightboxImageViewerDialog
 import com.example.ui.components.LightboxMediaItem
 import com.example.ui.components.extractLightboxMediaItem
 import com.example.ui.components.isImageMessage
+import com.example.ui.components.TelegramEmojiPickerBottomSheet
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -1377,28 +1378,17 @@ fun ChatScreen(viewModel: AppViewModel, chatId: String, navController: NavContro
                         )
                     } else {
                         var showEmojiPicker by remember { mutableStateOf(false) }
-                        IconButton(onClick = { showEmojiPicker = !showEmojiPicker }) {
+                        IconButton(onClick = { showEmojiPicker = true }) {
                             Text("😀", style = MaterialTheme.typography.titleLarge)
                         }
                         if (showEmojiPicker) {
-                            DropdownMenu(
-                                expanded = showEmojiPicker,
-                                onDismissRequest = { showEmojiPicker = false }
-                            ) {
-                                val emojis = listOf("😀", "😂", "🥰", "😎", "🤔", "👍", "❤️", "🔥")
-                                Row(modifier = Modifier.padding(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    emojis.forEach { emoji ->
-                                        Text(
-                                            text = emoji,
-                                            style = MaterialTheme.typography.titleLarge,
-                                            modifier = Modifier.clickable { 
-                                                inputText += emoji
-                                                showEmojiPicker = false
-                                            }
-                                        )
-                                    }
-                                }
-                            }
+                            TelegramEmojiPickerBottomSheet(
+                                onDismissRequest = { showEmojiPicker = false },
+                                onEmojiSelected = { emojiItem ->
+                                    inputText += emojiItem.emoji
+                                },
+                                title = "Эмодзи и стикеры"
+                            )
                         }
                         OutlinedTextField(
                             value = inputText,

@@ -5,6 +5,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
 import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -18,6 +19,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
@@ -26,10 +28,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -373,122 +378,269 @@ fun ChannelGroupAdminScreen(
         )
     }
 
-    // --- 5. REACTIONS MANAGEMENT DIALOG ---
+    // --- 5. REACTIONS MANAGEMENT MODAL (Telegram Exact Screen) ---
     if (showReactionsDialog) {
         var reactionsEnabled by remember { mutableStateOf(customization.reactionsEnabled) }
         val selectedReactions = remember { mutableStateListOf(*customization.availableReactions.toTypedArray()) }
-        var maxPerPost by remember { mutableFloatStateOf(customization.maxReactionsPerPost.toFloat()) }
+        var maxPerPost by remember { mutableFloatStateOf(customization.maxReactionsPerPost.toFloat().coerceIn(1f, 11f)) }
         var paidStarsEnabled by remember { mutableStateOf(customization.paidStarReactionsEnabled) }
+        var showReactionEmojiPicker by remember { mutableStateOf(false) }
 
-        val allAvailableReactions = remember {
-            listOf(
-                "❤️", "👍", "👎", "🔥", "🥰", "👏", "😁", "🤔", "🤯", "😱",
-                "🤬", "😢", "🎉", "🤩", "🙏", "👌", "🕊️", "🥱", "🥴", "😍", "🐳",
-                "❤️‍🔥", "🌚", "🌭", "💯", "🤣", "⚡", "🦄", "💊", "🍌", "🏆", "💔",
-                "🤨", "😐", "🍓", "🍾", "💋", "🖕", "😈", "😴", "😭", "🤓", "👻",
-                "👨‍💻", "👀", "🎃", "🙈", "😇", "🤝", "🚀", "💎", "⭐", "✨", "👑"
+        if (showReactionEmojiPicker) {
+            TelegramEmojiPickerBottomSheet(
+                onDismissRequest = { showReactionEmojiPicker = false },
+                onEmojiSelected = { emojiItem ->
+                    if (!selectedReactions.contains(emojiItem.emoji)) {
+                        selectedReactions.add(emojiItem.emoji)
+                    }
+                },
+                title = "Добавить реакцию"
             )
         }
 
         AlertDialog(
             onDismissRequest = { showReactionsDialog = false },
-            containerColor = Color(0xFF161E2E),
+            containerColor = Color(0xFF141721),
             title = {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text("Реакции", fontWeight = FontWeight.Bold, color = Color.White)
-                    Switch(
-                        checked = reactionsEnabled,
-                        onCheckedChange = { reactionsEnabled = it },
-                        colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color(0xFF2AABEE))
-                    )
+                    Text("Реакции", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 20.sp)
+                    IconButton(onClick = { showReactionsDialog = false }) {
+                        Icon(Icons.Filled.Close, contentDescription = "Закрыть", tint = Color.White.copy(alpha = 0.7f))
+                    }
                 }
             },
             text = {
-                LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp)) {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 480.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    // 1. Enable Reactions Card
                     item {
-                        Text(
-                            "Выберите реакции, доступные подписчикам под постами канала:",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color.White.copy(alpha = 0.7f)
-                        )
-                        Spacer(Modifier.height(10.dp))
-                    }
-
-                    if (reactionsEnabled) {
-                        item {
-                            // Reaction Grid
-                            val rows = allAvailableReactions.chunked(7)
-                            rows.forEach { rowEmojis ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    rowEmojis.forEach { emoji ->
-                                        val isSelected = selectedReactions.contains(emoji)
-                                        Box(
-                                            modifier = Modifier
-                                                .size(38.dp)
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .background(if (isSelected) Color(0xFF2AABEE).copy(alpha = 0.3f) else Color(0xFF0E131D))
-                                                .border(
-                                                    width = if (isSelected) 1.5.dp else 0.dp,
-                                                    color = if (isSelected) Color(0xFF2AABEE) else Color.Transparent,
-                                                    shape = RoundedCornerShape(8.dp)
-                                                )
-                                                .clickable {
-                                                    if (isSelected) {
-                                                        if (selectedReactions.size > 1) selectedReactions.remove(emoji)
-                                                    } else {
-                                                        selectedReactions.add(emoji)
-                                                    }
-                                                },
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(text = emoji, fontSize = 20.sp)
-                                        }
-                                    }
-                                }
-                            }
-                            Spacer(Modifier.height(14.dp))
-                        }
-
-                        item {
-                            Text(
-                                text = "Максимум реакций на пост: ${maxPerPost.toInt()}",
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White,
-                                fontSize = 14.sp
-                            )
-                            Slider(
-                                value = maxPerPost,
-                                onValueChange = { maxPerPost = it },
-                                valueRange = 1f..11f,
-                                steps = 9,
-                                colors = SliderDefaults.colors(thumbColor = Color(0xFF2AABEE), activeTrackColor = Color(0xFF2AABEE))
-                            )
-                            Spacer(Modifier.height(8.dp))
-                        }
-
-                        item {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp),
+                            color = Color(0xFF1E2230),
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.06f))
+                        ) {
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text("Платные реакции (⭐ Звезды)", fontWeight = FontWeight.SemiBold, color = Color.White, fontSize = 14.sp)
-                                    Text("Подписчики могут отправлять платные звездные реакции в поддержку канала", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-                                }
+                                Text(
+                                    "Включить реакции",
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color.White,
+                                    fontSize = 15.sp
+                                )
                                 Switch(
-                                    checked = paidStarsEnabled,
-                                    onCheckedChange = { paidStarsEnabled = it },
-                                    colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color(0xFFFFD54F))
+                                    checked = reactionsEnabled,
+                                    onCheckedChange = { reactionsEnabled = it },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = Color.White,
+                                        checkedTrackColor = Color(0xFF9C68FC),
+                                        uncheckedTrackColor = Color(0xFF2C3246)
+                                    )
                                 )
                             }
+                        }
+                        Text(
+                            text = "Вы можете добавить в список реакций эмодзи из любого набора.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White.copy(alpha = 0.45f),
+                            modifier = Modifier.padding(start = 8.dp, top = 4.dp)
+                        )
+                    }
+
+                    if (reactionsEnabled) {
+                        // 2. Available Reactions Card
+                        item {
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(14.dp),
+                                color = Color(0xFF1E2230),
+                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.06f))
+                            ) {
+                                Column(modifier = Modifier.padding(14.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            "Доступные реакции",
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = Color(0xFFB072FF),
+                                            fontSize = 14.sp
+                                        )
+                                        Text(
+                                            "${selectedReactions.size}",
+                                            color = Color.White.copy(alpha = 0.5f),
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                    Spacer(Modifier.height(10.dp))
+
+                                    // Reactions Grid with + button
+                                    val chunked = selectedReactions.chunked(7)
+                                    chunked.forEach { row ->
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                                            horizontalArrangement = Arrangement.Start
+                                        ) {
+                                            row.forEach { emoji ->
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(36.dp)
+                                                        .padding(2.dp)
+                                                        .clip(RoundedCornerShape(8.dp))
+                                                        .background(Color(0xFF9C68FC).copy(alpha = 0.25f))
+                                                        .clickable {
+                                                            if (selectedReactions.size > 1) {
+                                                                selectedReactions.remove(emoji)
+                                                            }
+                                                        },
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Text(emoji, fontSize = 18.sp)
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    Spacer(Modifier.height(8.dp))
+
+                                    // Add Reaction Action Button
+                                    OutlinedButton(
+                                        onClick = { showReactionEmojiPicker = true },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(10.dp),
+                                        border = BorderStroke(1.dp, Color(0xFF9C68FC).copy(alpha = 0.5f)),
+                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFB072FF))
+                                    ) {
+                                        Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(Modifier.width(6.dp))
+                                        Text("Добавить реакции из наборов", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                    }
+                                }
+                            }
+                            Text(
+                                text = "Вы также можете создавать собственные наборы и использовать эмодзи из них.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color.White.copy(alpha = 0.45f),
+                                modifier = Modifier.padding(start = 8.dp, top = 4.dp)
+                            )
+                        }
+
+                        // 3. Reactions Per Post Limit Slider Card
+                        item {
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(14.dp),
+                                color = Color(0xFF1E2230),
+                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.06f))
+                            ) {
+                                Column(modifier = Modifier.padding(14.dp)) {
+                                    Text(
+                                        "Количество реакций на публикацию",
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Color(0xFFB072FF),
+                                        fontSize = 14.sp
+                                    )
+                                    Spacer(Modifier.height(8.dp))
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text("1", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
+                                        Text(
+                                            "${maxPerPost.toInt()} ${if (maxPerPost.toInt() == 1) "реакция" else if (maxPerPost.toInt() in 2..4) "реакции" else "реакций"}",
+                                            color = Color.White,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 14.sp
+                                        )
+                                        Text("11", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
+                                    }
+
+                                    Slider(
+                                        value = maxPerPost,
+                                        onValueChange = { maxPerPost = it },
+                                        valueRange = 1f..11f,
+                                        steps = 9,
+                                        colors = SliderDefaults.colors(
+                                            thumbColor = Color(0xFF9C68FC),
+                                            activeTrackColor = Color(0xFF9C68FC),
+                                            inactiveTrackColor = Color.White.copy(alpha = 0.1f)
+                                        )
+                                    )
+                                }
+                            }
+                            Text(
+                                text = "Задайте максимальное количество разных реакций на публикацию, в том числе для ранее опубликованных сообщений.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color.White.copy(alpha = 0.45f),
+                                modifier = Modifier.padding(start = 8.dp, top = 4.dp)
+                            )
+                        }
+
+                        // 4. Paid Stars Reactions Card
+                        item {
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(14.dp),
+                                color = Color(0xFF1E2230),
+                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.06f))
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            "Включить платные реакции",
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = Color.White,
+                                            fontSize = 15.sp
+                                        )
+                                        Spacer(Modifier.height(2.dp))
+                                        Text(
+                                            "⭐ Звёзды Telegram",
+                                            color = Color(0xFFFFD54F),
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
+                                    Switch(
+                                        checked = paidStarsEnabled,
+                                        onCheckedChange = { paidStarsEnabled = it },
+                                        colors = SwitchDefaults.colors(
+                                            checkedThumbColor = Color.White,
+                                            checkedTrackColor = Color(0xFFFFD54F),
+                                            uncheckedTrackColor = Color(0xFF2C3246)
+                                        )
+                                    )
+                                }
+                            }
+                            Text(
+                                text = "Включите, чтобы подписчики могли отправлять Звёзды Telegram в качестве реакций. Вы сможете обменять звёзды на вознаграждение в GRAM.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color.White.copy(alpha = 0.45f),
+                                modifier = Modifier.padding(start = 8.dp, top = 4.dp)
+                            )
                         }
                     }
                 }
@@ -503,15 +655,17 @@ fun ChannelGroupAdminScreen(
                             maxPerPost.toInt(),
                             paidStarsEnabled
                         )
-                        Toast.makeText(context, "Настройки реакций обновлены!", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Настройки реакций сохранены!", Toast.LENGTH_SHORT).show()
                         showReactionsDialog = false
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2AABEE))
-                ) { Text("Сохранить") }
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9C68FC))
+                ) {
+                    Text("Сохранить изменения", fontWeight = FontWeight.Bold)
+                }
             },
-            dismissButton = {
-                TextButton(onClick = { showReactionsDialog = false }) { Text("Закрыть", color = Color.Gray) }
-            }
+            dismissButton = null
         )
     }
 
@@ -982,119 +1136,171 @@ fun ChannelGroupAdminScreen(
                 .padding(horizontal = 14.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // --- TOP HEADER CARD: Avatar + Camera + Title + Description ---
+            // --- TOP HEADER CARD (Monolithic Telegram Style) ---
             item {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
-                    color = Color(0xFF161E2E),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.05f))
+                    color = Color(0xFF191B28),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.06f))
                 ) {
                     Column(
-                        modifier = Modifier.padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                        modifier = Modifier.padding(16.dp)
                     ) {
-                        // Avatar circle with camera icon
-                        Box(
-                            modifier = Modifier
-                                .size(88.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    Brush.linearGradient(
-                                        listOf(Color(0xFFFF9900), Color(0xFFFF5E36))
-                                    )
-                                )
-                                .clickable {
-                                    Toast.makeText(context, "Выбор фотографии из галереи...", Toast.LENGTH_SHORT).show()
-                                },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = channelTitle.take(2).uppercase(),
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 30.sp
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .align(Alignment.BottomEnd)
-                                    .size(28.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0xFF2AABEE)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    Icons.Filled.PhotoCamera,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                        }
-
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            text = "Выбрать фотографию",
-                            color = Color(0xFF2AABEE),
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.clickable {
-                                Toast.makeText(context, "Открытие галереи...", Toast.LENGTH_SHORT).show()
-                            }
-                        )
-
-                        Spacer(Modifier.height(16.dp))
-
-                        // Title field with interactive Emoji Status button
+                        // 1. Row 1: Left Avatar + Right Channel Title with Status Emoji & Picker button
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            OutlinedTextField(
-                                value = channelTitle,
-                                onValueChange = { channelTitle = it },
-                                label = { Text("Название канала") },
-                                modifier = Modifier.weight(1f),
-                                singleLine = true,
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedTextColor = Color.White,
-                                    unfocusedTextColor = Color.White,
-                                    focusedBorderColor = Color(0xFF2AABEE)
-                                )
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            // Status Emoji Button
+                            // Avatar circle
                             Box(
                                 modifier = Modifier
-                                    .size(54.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(Color(0xFF0E131D))
-                                    .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
-                                    .clickable { showEmojiPicker = true },
+                                    .size(56.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        Brush.linearGradient(
+                                            listOf(Color(0xFFBA7EFC), Color(0xFF8F52E6))
+                                        )
+                                    )
+                                    .clickable {
+                                        Toast.makeText(context, "Выбор фотографии из галереи...", Toast.LENGTH_SHORT).show()
+                                    },
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = selectedStatusEmoji,
-                                    fontSize = 24.sp
+                                    text = channelTitle.take(2).uppercase().ifEmpty { "KU" },
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 22.sp
+                                )
+                            }
+
+                            Spacer(Modifier.width(14.dp))
+
+                            // Channel Title Row with embedded animated status emoji, smile picker button, and bottom underline
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    BasicTextField(
+                                        value = channelTitle,
+                                        onValueChange = { channelTitle = it },
+                                        modifier = Modifier.weight(1f),
+                                        singleLine = true,
+                                        textStyle = TextStyle(
+                                            color = Color.White,
+                                            fontSize = 18.sp,
+                                            fontWeight = FontWeight.Medium
+                                        ),
+                                        cursorBrush = SolidColor(Color(0xFFB072FF)),
+                                        decorationBox = { innerTextField ->
+                                            if (channelTitle.isEmpty()) {
+                                                Text(
+                                                    "Название канала",
+                                                    color = Color.White.copy(alpha = 0.4f),
+                                                    fontSize = 18.sp
+                                                )
+                                            }
+                                            innerTextField()
+                                        }
+                                    )
+
+                                    Spacer(Modifier.width(4.dp))
+
+                                    // Animated status emoji badge
+                                    AnimatedEmojiStatusBadge(
+                                        emoji = selectedStatusEmoji,
+                                        onClick = { showEmojiPicker = true }
+                                    )
+
+                                    // Embedded Emoji Picker Trigger Button (Smile icon in the title row)
+                                    IconButton(
+                                        onClick = { showEmojiPicker = true },
+                                        modifier = Modifier.size(36.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.SentimentSatisfied,
+                                            contentDescription = "Выбрать эмодзи статуса",
+                                            tint = Color.White.copy(alpha = 0.55f),
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+                                }
+
+                                Spacer(Modifier.height(4.dp))
+
+                                // Subtle accent underline under the title (Telegram style)
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(1.5.dp)
+                                        .background(
+                                            Brush.horizontalGradient(
+                                                listOf(Color(0xFF9C68FC), Color(0xFFB072FF).copy(alpha = 0.6f))
+                                            )
+                                        )
                                 )
                             }
                         }
 
+                        Spacer(Modifier.height(14.dp))
+
+                        // 2. Photo selector row
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable {
+                                    Toast.makeText(context, "Выбор фотографии из галереи...", Toast.LENGTH_SHORT).show()
+                                }
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Outlined.AddAPhoto,
+                                contentDescription = "Выбрать фотографию",
+                                tint = Color(0xFFB072FF),
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Text(
+                                text = "Выбрать фотографию",
+                                color = Color(0xFFB072FF),
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+
+                        Spacer(Modifier.height(14.dp))
+                        HorizontalDivider(color = Color.White.copy(alpha = 0.05f))
                         Spacer(Modifier.height(12.dp))
 
-                        // Description multi-line field
-                        OutlinedTextField(
+                        // 3. Monolithic Description multi-line field (seamlessly integrated)
+                        BasicTextField(
                             value = channelDesc,
                             onValueChange = { channelDesc = it },
-                            label = { Text("Описание") },
-                            modifier = Modifier.fillMaxWidth(),
-                            minLines = 3,
-                            maxLines = 6,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White,
-                                focusedBorderColor = Color(0xFF2AABEE)
-                            )
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            minLines = 2,
+                            maxLines = 8,
+                            textStyle = TextStyle(
+                                color = Color.White.copy(alpha = 0.9f),
+                                fontSize = 15.sp,
+                                lineHeight = 22.sp
+                            ),
+                            cursorBrush = SolidColor(Color(0xFFB072FF)),
+                            decorationBox = { innerTextField ->
+                                if (channelDesc.isEmpty()) {
+                                    Text(
+                                        "Описание",
+                                        color = Color.White.copy(alpha = 0.4f),
+                                        fontSize = 15.sp
+                                    )
+                                }
+                                innerTextField()
+                            }
                         )
                     }
                 }
@@ -1321,12 +1527,45 @@ fun ChannelGroupAdminScreen(
 }
 
 @Composable
+private fun AnimatedEmojiStatusBadge(
+    emoji: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "status_emoji_anim")
+    val scale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.15f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1100, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "emoji_scale"
+    )
+
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 4.dp, vertical = 2.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = emoji,
+            fontSize = 20.sp,
+            modifier = Modifier.scale(scale)
+        )
+    }
+}
+
+@Composable
 private fun AdminMenuRow(
     icon: ImageVector,
     title: String,
     value: String = "",
     badgeText: String? = null,
-    iconTint: Color = Color(0xFF2AABEE),
+    valueColor: Color = Color(0xFFB072FF),
+    iconTint: Color = Color.White.copy(alpha = 0.65f),
     onClick: () -> Unit
 ) {
     Row(
@@ -1352,13 +1591,13 @@ private fun AdminMenuRow(
 
         if (badgeText != null) {
             Surface(
-                shape = RoundedCornerShape(4.dp),
-                color = Color(0xFF2AABEE).copy(alpha = 0.18f),
+                shape = RoundedCornerShape(6.dp),
+                color = Color(0xFF8E44EC),
                 modifier = Modifier.padding(end = 6.dp)
             ) {
                 Text(
                     text = badgeText,
-                    color = Color(0xFF2AABEE),
+                    color = Color.White,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -1369,8 +1608,9 @@ private fun AdminMenuRow(
         if (value.isNotEmpty()) {
             Text(
                 text = value,
-                color = Color.White.copy(alpha = 0.5f),
-                fontSize = 14.sp
+                color = valueColor,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium
             )
             Spacer(Modifier.width(6.dp))
         }
@@ -1390,7 +1630,7 @@ private fun AdminSwitchMenuRow(
     title: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
-    iconTint: Color = Color(0xFF2AABEE)
+    iconTint: Color = Color.White.copy(alpha = 0.65f)
 ) {
     Row(
         modifier = Modifier
@@ -1416,7 +1656,8 @@ private fun AdminSwitchMenuRow(
             onCheckedChange = onCheckedChange,
             colors = SwitchDefaults.colors(
                 checkedThumbColor = Color.White,
-                checkedTrackColor = Color(0xFF2AABEE)
+                checkedTrackColor = Color(0xFF9C68FC),
+                uncheckedTrackColor = Color(0xFF2C3246)
             )
         )
     }
