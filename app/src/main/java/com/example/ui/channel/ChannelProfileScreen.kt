@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
@@ -74,6 +75,10 @@ fun ChannelProfileScreen(
     var isDescExpanded by remember { mutableStateOf(false) }
     var showQrDialog by remember { mutableStateOf(false) }
     var showEmojiPicker by remember { mutableStateOf(false) }
+    var showOptionsMenu by remember { mutableStateOf(false) }
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+    var showLeaveConfirmDialog by remember { mutableStateOf(false) }
+    var deleteForAllSubscribers by remember { mutableStateOf(true) }
     var selectedMediaTab by remember { mutableIntStateOf(0) }
 
     val mediaTabs = listOf("Медиа", "Файлы", "Голосовые", "Ссылки", "Опросы")
@@ -154,6 +159,167 @@ fun ChannelProfileScreen(
         )
     }
 
+    // --- DELETE CHANNEL CONFIRMATION DIALOG ---
+    if (showDeleteConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmDialog = false },
+            containerColor = Color(0xFF191B28),
+            shape = RoundedCornerShape(20.dp),
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFFF5252).copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.DeleteForever,
+                            contentDescription = null,
+                            tint = Color(0xFFFF5252),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        "Удалить канал?",
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        fontSize = 18.sp
+                    )
+                }
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        "Вы действительно хотите удалить канал «${chat?.title ?: "Канал"}»? Это действие необратимо: все сообщения, медиафайлы и подписчики будут удалены.",
+                        color = Color.White.copy(alpha = 0.8f),
+                        fontSize = 14.sp,
+                        lineHeight = 20.sp
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { deleteForAllSubscribers = !deleteForAllSubscribers }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = deleteForAllSubscribers,
+                            onCheckedChange = { deleteForAllSubscribers = it },
+                            colors = CheckboxDefaults.colors(
+                                checkedColor = Color(0xFFFF5252),
+                                uncheckedColor = Color.White.copy(alpha = 0.4f),
+                                checkmarkColor = Color.White
+                            )
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "Удалить для всех подписчиков",
+                            color = Color.White.copy(alpha = 0.9f),
+                            fontSize = 14.sp
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDeleteConfirmDialog = false
+                        viewModel.deleteChat(chatId)
+                        Toast.makeText(context, "Канал «${chat?.title ?: "Канал"}» удален", Toast.LENGTH_SHORT).show()
+                        navController.navigate("chat_list") {
+                            popUpTo("chat_list") { inclusive = true }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5252)),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("Удалить канал", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showDeleteConfirmDialog = false }
+                ) {
+                    Text("Отмена", color = Color(0xFFB072FF))
+                }
+            }
+        )
+    }
+
+    // --- LEAVE CHANNEL CONFIRMATION DIALOG ---
+    if (showLeaveConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showLeaveConfirmDialog = false },
+            containerColor = Color(0xFF191B28),
+            shape = RoundedCornerShape(20.dp),
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFFF5252).copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ExitToApp,
+                            contentDescription = null,
+                            tint = Color(0xFFFF5252),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        "Покинуть канал?",
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        fontSize = 18.sp
+                    )
+                }
+            },
+            text = {
+                Text(
+                    "Вы действительно хотите покинуть канал «${chat?.title ?: "Канал"}»? Вы перестанете получать обновления и публикации этого канала.",
+                    color = Color.White.copy(alpha = 0.8f),
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showLeaveConfirmDialog = false
+                        viewModel.deleteChat(chatId)
+                        Toast.makeText(context, "Вы покинули канал «${chat?.title ?: "Канал"}»", Toast.LENGTH_SHORT).show()
+                        navController.navigate("chat_list") {
+                            popUpTo("chat_list") { inclusive = true }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5252)),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("Покинуть канал", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showLeaveConfirmDialog = false }
+                ) {
+                    Text("Отмена", color = Color(0xFFB072FF))
+                }
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -170,8 +336,52 @@ fun ChannelProfileScreen(
                     IconButton(onClick = { navController.navigate("channel_admin/$chatId") }) {
                         Icon(Icons.Filled.Edit, contentDescription = "Изменить", tint = Color.White)
                     }
-                    IconButton(onClick = { /* Menu */ }) {
-                        Icon(Icons.Filled.MoreVert, contentDescription = "Опции", tint = Color.White)
+                    Box {
+                        IconButton(onClick = { showOptionsMenu = true }) {
+                            Icon(Icons.Filled.MoreVert, contentDescription = "Опции", tint = Color.White)
+                        }
+                        DropdownMenu(
+                            expanded = showOptionsMenu,
+                            onDismissRequest = { showOptionsMenu = false },
+                            containerColor = Color(0xFF1E2433)
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Поделиться", color = Color.White) },
+                                leadingIcon = { Icon(Icons.Filled.Share, contentDescription = null, tint = Color.White.copy(alpha = 0.7f)) },
+                                onClick = {
+                                    showOptionsMenu = false
+                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                    clipboard.setPrimaryClip(ClipData.newPlainText("Channel Link", "https://${customization.inviteLink}"))
+                                    Toast.makeText(context, "Ссылка на канал скопирована!", Toast.LENGTH_SHORT).show()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Очистить историю", color = Color.White) },
+                                leadingIcon = { Icon(Icons.Filled.CleaningServices, contentDescription = null, tint = Color.White.copy(alpha = 0.7f)) },
+                                onClick = {
+                                    showOptionsMenu = false
+                                    viewModel.clearHistory(chatId)
+                                    Toast.makeText(context, "История очищена", Toast.LENGTH_SHORT).show()
+                                }
+                            )
+                            HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+                            DropdownMenuItem(
+                                text = { Text("Покинуть канал", color = Color(0xFFFF5252)) },
+                                leadingIcon = { Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = null, tint = Color(0xFFFF5252)) },
+                                onClick = {
+                                    showOptionsMenu = false
+                                    showLeaveConfirmDialog = true
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Удалить канал", color = Color(0xFFFF5252)) },
+                                leadingIcon = { Icon(Icons.Filled.DeleteForever, contentDescription = null, tint = Color(0xFFFF5252)) },
+                                onClick = {
+                                    showOptionsMenu = false
+                                    showDeleteConfirmDialog = true
+                                }
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF0F141C))

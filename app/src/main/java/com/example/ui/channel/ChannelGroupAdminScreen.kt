@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
@@ -93,6 +94,8 @@ fun ChannelGroupAdminScreen(
     var showRecentActionsDialog by remember { mutableStateOf(false) }
     var showAffiliateDialog by remember { mutableStateOf(false) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+    var showLeaveConfirmDialog by remember { mutableStateOf(false) }
+    var deleteForAllSubscribers by remember { mutableStateOf(true) }
     var showAddAdminDialog by remember { mutableStateOf(false) }
 
     // --- EMOJI PICKER BOTTOM SHEET ---
@@ -1071,29 +1074,159 @@ fun ChannelGroupAdminScreen(
     if (showDeleteConfirmDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirmDialog = false },
-            containerColor = Color(0xFF161E2E),
-            title = { Text("Удалить канал?", fontWeight = FontWeight.Bold, color = Color(0xFFFF5252)) },
+            containerColor = Color(0xFF191B28),
+            shape = RoundedCornerShape(20.dp),
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFFF5252).copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.DeleteForever,
+                            contentDescription = null,
+                            tint = Color(0xFFFF5252),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        "Удалить канал?",
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        fontSize = 18.sp
+                    )
+                }
+            },
             text = {
-                Text(
-                    "Вы действительно хотите удалить канал '$channelTitle'? Все посты, медиафайлы и подписчики будут безвозвратно удалены.",
-                    color = Color.White.copy(alpha = 0.85f)
-                )
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        "Вы действительно хотите удалить канал «$channelTitle»? Это действие необратимо: все сообщения, медиафайлы и подписчики будут удалены.",
+                        color = Color.White.copy(alpha = 0.8f),
+                        fontSize = 14.sp,
+                        lineHeight = 20.sp
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { deleteForAllSubscribers = !deleteForAllSubscribers }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = deleteForAllSubscribers,
+                            onCheckedChange = { deleteForAllSubscribers = it },
+                            colors = CheckboxDefaults.colors(
+                                checkedColor = Color(0xFFFF5252),
+                                uncheckedColor = Color.White.copy(alpha = 0.4f),
+                                checkmarkColor = Color.White
+                            )
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "Удалить для всех подписчиков",
+                            color = Color.White.copy(alpha = 0.9f),
+                            fontSize = 14.sp
+                        )
+                    }
+                }
             },
             confirmButton = {
                 Button(
                     onClick = {
                         showDeleteConfirmDialog = false
                         viewModel.deleteChat(chatId)
-                        Toast.makeText(context, "Канал удален", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Канал «$channelTitle» удален", Toast.LENGTH_SHORT).show()
                         navController.navigate("chat_list") {
                             popUpTo("chat_list") { inclusive = true }
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5252))
-                ) { Text("Удалить канал") }
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5252)),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("Удалить канал", fontWeight = FontWeight.Bold)
+                }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteConfirmDialog = false }) { Text("Отмена", color = Color.Gray) }
+                TextButton(
+                    onClick = { showDeleteConfirmDialog = false }
+                ) {
+                    Text("Отмена", color = Color(0xFFB072FF))
+                }
+            }
+        )
+    }
+
+    // --- 14. LEAVE CHANNEL CONFIRMATION DIALOG ---
+    if (showLeaveConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showLeaveConfirmDialog = false },
+            containerColor = Color(0xFF191B28),
+            shape = RoundedCornerShape(20.dp),
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFFF5252).copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ExitToApp,
+                            contentDescription = null,
+                            tint = Color(0xFFFF5252),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        "Покинуть канал?",
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        fontSize = 18.sp
+                    )
+                }
+            },
+            text = {
+                Text(
+                    "Вы действительно хотите покинуть канал «$channelTitle»? Вы перестанете получать уведомления и публикации этого канала.",
+                    color = Color.White.copy(alpha = 0.8f),
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showLeaveConfirmDialog = false
+                        viewModel.deleteChat(chatId)
+                        Toast.makeText(context, "Вы покинули канал «$channelTitle»", Toast.LENGTH_SHORT).show()
+                        navController.navigate("chat_list") {
+                            popUpTo("chat_list") { inclusive = true }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5252)),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("Покинуть канал", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showLeaveConfirmDialog = false }
+                ) {
+                    Text("Отмена", color = Color(0xFFB072FF))
+                }
             }
         )
     }
@@ -1503,17 +1636,52 @@ fun ChannelGroupAdminScreen(
 
                         HorizontalDivider(modifier = Modifier.padding(start = 56.dp), color = Color.White.copy(alpha = 0.06f))
 
-                        // Удалить канал (Danger Button)
+                        // Покинуть канал (Leave Channel Danger Button)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showLeaveConfirmDialog = true }
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ExitToApp,
+                                contentDescription = null,
+                                tint = Color(0xFFFF5252),
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(Modifier.width(16.dp))
+                            Text(
+                                "Покинуть канал",
+                                color = Color(0xFFFF5252),
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 15.sp
+                            )
+                        }
+
+                        HorizontalDivider(modifier = Modifier.padding(start = 56.dp), color = Color.White.copy(alpha = 0.06f))
+
+                        // Удалить канал (Delete Channel Danger Button)
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable { showDeleteConfirmDialog = true }
-                                .padding(horizontal = 16.dp, vertical = 16.dp),
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Filled.DeleteOutline, contentDescription = null, tint = Color(0xFFFF5252), modifier = Modifier.size(24.dp))
+                            Icon(
+                                Icons.Filled.DeleteOutline,
+                                contentDescription = null,
+                                tint = Color(0xFFFF5252),
+                                modifier = Modifier.size(24.dp)
+                            )
                             Spacer(Modifier.width(16.dp))
-                            Text("Удалить канал", color = Color(0xFFFF5252), fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                            Text(
+                                "Удалить канал",
+                                color = Color(0xFFFF5252),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp
+                            )
                         }
                     }
                 }
