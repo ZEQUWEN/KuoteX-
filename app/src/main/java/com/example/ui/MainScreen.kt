@@ -566,7 +566,39 @@ fun MainAppNavigation(viewModel: AppViewModel) {
                                     BotDashboardScreen(botId, mainNavController)
                                 }
                             }
-                            composable("profile/{chatId}") { backStackEntry ->
+                            composable(
+                                route = "profile/{chatId}",
+                                enterTransition = {
+                                    slideIntoContainer(
+                                        towards = AnimatedContentTransitionScope.SlideDirection.Up,
+                                        animationSpec = spring(
+                                            dampingRatio = Spring.DampingRatioLowBouncy,
+                                            stiffness = Spring.StiffnessMediumLow
+                                        )
+                                    ) + fadeIn(animationSpec = tween(280))
+                                },
+                                exitTransition = {
+                                    slideOutOfContainer(
+                                        towards = AnimatedContentTransitionScope.SlideDirection.Down,
+                                        animationSpec = tween(280, easing = FastOutSlowInEasing)
+                                    ) + fadeOut(animationSpec = tween(220))
+                                },
+                                popEnterTransition = {
+                                    slideIntoContainer(
+                                        towards = AnimatedContentTransitionScope.SlideDirection.Up,
+                                        animationSpec = tween(250, easing = FastOutSlowInEasing)
+                                    ) + fadeIn(animationSpec = tween(250))
+                                },
+                                popExitTransition = {
+                                    slideOutOfContainer(
+                                        towards = AnimatedContentTransitionScope.SlideDirection.Down,
+                                        animationSpec = spring(
+                                            dampingRatio = Spring.DampingRatioNoBouncy,
+                                            stiffness = Spring.StiffnessMediumLow
+                                        )
+                                    ) + fadeOut(animationSpec = tween(220))
+                                }
+                            ) { backStackEntry ->
                                 val chatId = backStackEntry.arguments?.getString("chatId")
                                 if (chatId != null) {
                                     val chats = viewModel.chats.value
@@ -582,28 +614,164 @@ fun MainAppNavigation(viewModel: AppViewModel) {
                                     }
                                 }
                             }
-                            composable("group_admin/{chatId}") { backStackEntry -> 
+                            composable(
+                                route = "group_admin/{chatId}",
+                                enterTransition = {
+                                    slideIntoContainer(
+                                        towards = AnimatedContentTransitionScope.SlideDirection.Up,
+                                        animationSpec = spring(
+                                            dampingRatio = Spring.DampingRatioLowBouncy,
+                                            stiffness = Spring.StiffnessMediumLow
+                                        )
+                                    ) + fadeIn(animationSpec = tween(280))
+                                },
+                                exitTransition = {
+                                    slideOutOfContainer(
+                                        towards = AnimatedContentTransitionScope.SlideDirection.Down,
+                                        animationSpec = tween(280, easing = FastOutSlowInEasing)
+                                    ) + fadeOut(animationSpec = tween(220))
+                                },
+                                popEnterTransition = {
+                                    slideIntoContainer(
+                                        towards = AnimatedContentTransitionScope.SlideDirection.Up,
+                                        animationSpec = tween(250, easing = FastOutSlowInEasing)
+                                    ) + fadeIn(animationSpec = tween(250))
+                                },
+                                popExitTransition = {
+                                    slideOutOfContainer(
+                                        towards = AnimatedContentTransitionScope.SlideDirection.Down,
+                                        animationSpec = spring(
+                                            dampingRatio = Spring.DampingRatioNoBouncy,
+                                            stiffness = Spring.StiffnessMediumLow
+                                        )
+                                    ) + fadeOut(animationSpec = tween(220))
+                                }
+                            ) { backStackEntry -> 
                                 val chatId = backStackEntry.arguments?.getString("chatId")
                                 if (chatId != null) {
-                                    ChannelGroupAdminScreen(viewModel, chatId, mainNavController)
+                                    CompositionLocalProvider(LocalAnimatedVisibilityScope provides this@composable) {
+                                        ChannelGroupAdminScreen(viewModel, chatId, mainNavController)
+                                    }
                                 }
                             }
-                            composable("channel_admin/{chatId}") { backStackEntry -> 
+                            composable(
+                                route = "channel_admin/{chatId}",
+                                enterTransition = {
+                                    slideIntoContainer(
+                                        towards = AnimatedContentTransitionScope.SlideDirection.Up,
+                                        animationSpec = spring(
+                                            dampingRatio = Spring.DampingRatioLowBouncy,
+                                            stiffness = Spring.StiffnessMediumLow
+                                        )
+                                    ) + fadeIn(animationSpec = tween(280))
+                                },
+                                exitTransition = {
+                                    slideOutOfContainer(
+                                        towards = AnimatedContentTransitionScope.SlideDirection.Down,
+                                        animationSpec = tween(280, easing = FastOutSlowInEasing)
+                                    ) + fadeOut(animationSpec = tween(220))
+                                },
+                                popEnterTransition = {
+                                    slideIntoContainer(
+                                        towards = AnimatedContentTransitionScope.SlideDirection.Up,
+                                        animationSpec = tween(250, easing = FastOutSlowInEasing)
+                                    ) + fadeIn(animationSpec = tween(250))
+                                },
+                                popExitTransition = {
+                                    slideOutOfContainer(
+                                        towards = AnimatedContentTransitionScope.SlideDirection.Down,
+                                        animationSpec = spring(
+                                            dampingRatio = Spring.DampingRatioNoBouncy,
+                                            stiffness = Spring.StiffnessMediumLow
+                                        )
+                                    ) + fadeOut(animationSpec = tween(220))
+                                }
+                            ) { backStackEntry -> 
                                 val chatId = backStackEntry.arguments?.getString("chatId")
                                 if (chatId != null) {
-                                    ChannelGroupAdminScreen(viewModel, chatId, mainNavController)
+                                    CompositionLocalProvider(LocalAnimatedVisibilityScope provides this@composable) {
+                                        ChannelGroupAdminScreen(viewModel, chatId, mainNavController)
+                                    }
                                 }
                             }
-                            composable("channel_appearance/{chatId}") { backStackEntry -> 
+                            composable(
+                                route = "channel_appearance/{chatId}",
+                                enterTransition = {
+                                    slideIntoContainer(
+                                        towards = AnimatedContentTransitionScope.SlideDirection.Up,
+                                        animationSpec = spring(
+                                            dampingRatio = Spring.DampingRatioLowBouncy,
+                                            stiffness = Spring.StiffnessMediumLow
+                                        )
+                                    ) + fadeIn(animationSpec = tween(280))
+                                },
+                                exitTransition = {
+                                    slideOutOfContainer(
+                                        towards = AnimatedContentTransitionScope.SlideDirection.Down,
+                                        animationSpec = tween(280, easing = FastOutSlowInEasing)
+                                    ) + fadeOut(animationSpec = tween(220))
+                                },
+                                popEnterTransition = {
+                                    slideIntoContainer(
+                                        towards = AnimatedContentTransitionScope.SlideDirection.Up,
+                                        animationSpec = tween(250, easing = FastOutSlowInEasing)
+                                    ) + fadeIn(animationSpec = tween(250))
+                                },
+                                popExitTransition = {
+                                    slideOutOfContainer(
+                                        towards = AnimatedContentTransitionScope.SlideDirection.Down,
+                                        animationSpec = spring(
+                                            dampingRatio = Spring.DampingRatioNoBouncy,
+                                            stiffness = Spring.StiffnessMediumLow
+                                        )
+                                    ) + fadeOut(animationSpec = tween(220))
+                                }
+                            ) { backStackEntry -> 
                                 val chatId = backStackEntry.arguments?.getString("chatId")
                                 if (chatId != null) {
-                                    ChannelAppearanceScreen(viewModel, chatId, mainNavController)
+                                    CompositionLocalProvider(LocalAnimatedVisibilityScope provides this@composable) {
+                                        ChannelAppearanceScreen(viewModel, chatId, mainNavController)
+                                    }
                                 }
                             }
-                            composable("channel_boost/{chatId}") { backStackEntry -> 
+                            composable(
+                                route = "channel_boost/{chatId}",
+                                enterTransition = {
+                                    slideIntoContainer(
+                                        towards = AnimatedContentTransitionScope.SlideDirection.Up,
+                                        animationSpec = spring(
+                                            dampingRatio = Spring.DampingRatioLowBouncy,
+                                            stiffness = Spring.StiffnessMediumLow
+                                        )
+                                    ) + fadeIn(animationSpec = tween(280))
+                                },
+                                exitTransition = {
+                                    slideOutOfContainer(
+                                        towards = AnimatedContentTransitionScope.SlideDirection.Down,
+                                        animationSpec = tween(280, easing = FastOutSlowInEasing)
+                                    ) + fadeOut(animationSpec = tween(220))
+                                },
+                                popEnterTransition = {
+                                    slideIntoContainer(
+                                        towards = AnimatedContentTransitionScope.SlideDirection.Up,
+                                        animationSpec = tween(250, easing = FastOutSlowInEasing)
+                                    ) + fadeIn(animationSpec = tween(250))
+                                },
+                                popExitTransition = {
+                                    slideOutOfContainer(
+                                        towards = AnimatedContentTransitionScope.SlideDirection.Down,
+                                        animationSpec = spring(
+                                            dampingRatio = Spring.DampingRatioNoBouncy,
+                                            stiffness = Spring.StiffnessMediumLow
+                                        )
+                                    ) + fadeOut(animationSpec = tween(220))
+                                }
+                            ) { backStackEntry -> 
                                 val chatId = backStackEntry.arguments?.getString("chatId")
                                 if (chatId != null) {
-                                    ChannelBoostScreen(viewModel, chatId, mainNavController)
+                                    CompositionLocalProvider(LocalAnimatedVisibilityScope provides this@composable) {
+                                        ChannelBoostScreen(viewModel, chatId, mainNavController)
+                                    }
                                 }
                             }
                         }
