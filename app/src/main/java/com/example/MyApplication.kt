@@ -19,6 +19,11 @@ class MyApplication : Application(), ImageLoaderFactory {
         super.onCreate()
         initFirebase()
         try {
+            com.example.config.FirebaseRemoteConfigManager.init(this)
+        } catch (e: Exception) {
+            Log.w("MyApplication", "FirebaseRemoteConfigManager init: ${e.message}")
+        }
+        try {
             FirebaseAnalyticsHelper.init(this)
         } catch (e: Exception) {
             Log.w("MyApplication", "FirebaseAnalyticsHelper init: ${e.message}")

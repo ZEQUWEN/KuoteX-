@@ -588,6 +588,12 @@ fun SettingsMenuScreen(viewModel: AppViewModel, navController: NavController) {
                         subtitle = "Русский",
                         onClick = { navController.navigate("settings/language") }
                     )
+                    SettingsListItem(
+                        icon = { Box(modifier = Modifier.size(36.dp).clip(CircleShape).background(Color(0xFF00E5FF)), contentAlignment = Alignment.Center) { Icon(Icons.Filled.CloudSync, null, tint = Color.Black, modifier = Modifier.size(20.dp)) } },
+                        title = "Remote Config",
+                        subtitle = "Динамические флаги возможностей и параметры",
+                        onClick = { navController.navigate("settings/remote_config") }
+                    )
                 }
             }
             

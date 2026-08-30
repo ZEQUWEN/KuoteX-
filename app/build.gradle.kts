@@ -78,6 +78,7 @@ dependencies {
   implementation("com.google.firebase:firebase-analytics")
   implementation("com.google.firebase:firebase-appcheck-playintegrity")
   implementation("com.google.firebase:firebase-appcheck")
+  implementation("com.google.firebase:firebase-config")
   implementation("com.google.firebase:firebase-messaging")
   implementation("com.google.firebase:firebase-auth")
   implementation("com.google.firebase:firebase-firestore")

@@ -464,6 +464,7 @@ fun MainAppNavigation(viewModel: AppViewModel) {
                             composable("database_diagnostics") { DatabaseDiagnosticScreen() }
                             composable("settings/developer_stats") { DeveloperStatsScreen(viewModel, mainNavController) }
                             composable("settings/developer_debug") { DeveloperAnalyticsDebugScreen(viewModel, mainNavController) }
+                            composable("settings/remote_config") { RemoteConfigScreen(viewModel, mainNavController) }
                             composable("settings/accounts") { SettingsAccountsScreen(viewModel, mainNavController) }
                             composable("settings/profile?highlightId={highlightId}", arguments = listOf(navArgument("highlightId") { nullable = true; defaultValue = null })) { backStackEntry ->
                                 val highlightId = backStackEntry.arguments?.getString("highlightId")

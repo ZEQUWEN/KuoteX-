@@ -240,6 +240,16 @@ class AppViewModel(val repository: MessengerRepository, val userPrefs: com.examp
     val batterySaverEnabled: StateFlow<Boolean> = userPrefs.batterySaverEnabled
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
+    val remoteConfig: StateFlow<com.example.config.AppConfig> =
+        com.example.config.FirebaseRemoteConfigManager.configState
+
+    fun refreshRemoteConfig(onResult: ((Boolean) -> Unit)? = null) {
+        viewModelScope.launch {
+            val success = com.example.config.FirebaseRemoteConfigManager.refreshConfig()
+            onResult?.invoke(success)
+        }
+    }
+
     private val _isQrSnowflakesEnabled = MutableStateFlow(repository.getQrSnowflakesEnabled())
     val isQrSnowflakesEnabled: StateFlow<Boolean> = _isQrSnowflakesEnabled.asStateFlow()
 
