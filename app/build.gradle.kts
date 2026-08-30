@@ -76,6 +76,8 @@ dependencies {
   implementation(platform(libs.androidx.compose.bom))
   implementation(platform(libs.firebase.bom))
   implementation("com.google.firebase:firebase-analytics")
+  implementation("com.google.firebase:firebase-appcheck-playintegrity")
+  implementation("com.google.firebase:firebase-appcheck")
   implementation("com.google.firebase:firebase-messaging")
   implementation("com.google.firebase:firebase-auth")
   implementation("com.google.firebase:firebase-firestore")

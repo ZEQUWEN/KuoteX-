@@ -4,6 +4,9 @@ import android.app.Application
 import android.util.Log
 import coil.ImageLoader
 import coil.ImageLoaderFactory
+import com.google.firebase.Firebase
+import com.google.firebase.appcheck.appCheck
+import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
 import com.example.analytics.FirebaseAnalyticsHelper
@@ -73,6 +76,11 @@ class MyApplication : Application(), ImageLoaderFactory {
 
                 FirebaseApp.initializeApp(this, options)
                 Log.i("MyApplication", "FirebaseApp initialized with project: ${options.projectId}")
+                
+                Firebase.appCheck.installAppCheckProviderFactory(
+                    PlayIntegrityAppCheckProviderFactory.getInstance()
+                )
+                Log.i("MyApplication", "Firebase App Check initialized with Play Integrity")
             }
         } catch (e: Exception) {
             Log.w("MyApplication", "FirebaseApp init error: ${e.message}")
