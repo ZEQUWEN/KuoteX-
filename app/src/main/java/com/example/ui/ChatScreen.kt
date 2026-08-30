@@ -2440,20 +2440,41 @@ fun ChatScreen(viewModel: AppViewModel, chatId: String, navController: NavContro
                 else -> chat.title
             }
             var durText = "0:04"
+            var videoPath: String? = vMsg.mediaPath
+            var isCircular = true
             if (!vMsg.documentData.isNullOrBlank()) {
                 try {
                     val json = org.json.JSONObject(vMsg.documentData)
                     val dur = json.optString("duration", "")
                     if (dur.isNotBlank()) durText = dur
+                    val uri = json.optString("uri", "")
+                    if (uri.isNotBlank()) videoPath = uri
+                    if (json.has("isRound")) {
+                        isCircular = json.optBoolean("isRound", true)
+                    } else if (json.optString("type", "") == "video_note") {
+                        isCircular = true
+                    } else {
+                        val mime = json.optString("mimeType", "")
+                        val name = json.optString("name", "")
+                        if (mime.startsWith("video/") || name.endsWith(".mp4") || name.endsWith(".mov") || name.endsWith(".webm")) {
+                            isCircular = false
+                        }
+                    }
                 } catch (_: Exception) {}
             } else if (vMsg.text.contains("(") && vMsg.text.contains(")")) {
                 durText = vMsg.text.substringAfter("(").substringBefore(")")
             }
 
-            com.example.ui.components.TelegramVideoNoteViewerDialog(
+            if (vMsg.mediaType == "video" || (videoPath != null && (videoPath.endsWith(".mp4") || videoPath.endsWith(".mov") || videoPath.endsWith(".webm")) && !vMsg.mediaType.equals("video_note", true) && !vMsg.text.startsWith("📹"))) {
+                isCircular = false
+            }
+
+            com.example.ui.components.FullScreenVideoPlayerDialog(
+                videoUri = videoPath,
                 senderName = senderName,
                 durationText = durText,
                 timestamp = vMsg.timestamp,
+                isCircular = isCircular,
                 onDismiss = { activeVideoNoteToView = null },
                 onReply = {
                     replyingToMessage = vMsg
@@ -4642,7 +4663,14 @@ fun MessageBubble(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
                                 .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
-                                .clickable { showDownloadDialog = true }
+                                .clickable {
+                                    val isVideo = mime.startsWith("video/") || name.endsWith(".mp4") || name.endsWith(".webm") || name.endsWith(".mov") || message.mediaType == "video"
+                                    if (isVideo && onOpenVideoNote != null) {
+                                        onOpenVideoNote()
+                                    } else {
+                                        showDownloadDialog = true
+                                    }
+                                }
                                 .padding(8.dp)
                         ) {
                             Icon(icon, contentDescription = "File", tint = if (isMe) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface)

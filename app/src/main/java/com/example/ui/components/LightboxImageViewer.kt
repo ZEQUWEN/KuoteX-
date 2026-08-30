@@ -959,28 +959,51 @@ private fun ZoomableImagePage(
                 },
             contentAlignment = Alignment.Center
         ) {
-            AsyncImage(
-                model = ImageRequest.Builder(context)
-                    .data(mediaItem.imageUrl)
-                    .crossfade(true)
-                    .allowHardware(false)
-                    .build(),
-                contentDescription = mediaItem.caption.ifBlank { "Shared photo" },
-                modifier = Modifier
-                    .fillMaxSize()
-                    .offset {
-                        IntOffset(
-                            x = offset.value.x.roundToInt(),
-                            y = (offset.value.y + dismissOffsetY.value).roundToInt()
-                        )
-                    }
-                    .graphicsLayer {
-                        scaleX = scale.value
-                        scaleY = scale.value
-                        rotationZ = rotationAngle
-                    },
-                contentScale = ContentScale.Fit
-            )
+            if (mediaItem.isVideo) {
+                VideoPlayerView(
+                    videoUri = mediaItem.imageUrl,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .offset {
+                            IntOffset(
+                                x = offset.value.x.roundToInt(),
+                                y = (offset.value.y + dismissOffsetY.value).roundToInt()
+                            )
+                        }
+                        .graphicsLayer {
+                            scaleX = scale.value
+                            scaleY = scale.value
+                            rotationZ = rotationAngle
+                        },
+                    autoPlay = isCurrentPage,
+                    isLooping = true,
+                    showControls = true,
+                    isCircular = false
+                )
+            } else {
+                AsyncImage(
+                    model = ImageRequest.Builder(context)
+                        .data(mediaItem.imageUrl)
+                        .crossfade(true)
+                        .allowHardware(false)
+                        .build(),
+                    contentDescription = mediaItem.caption.ifBlank { "Shared photo" },
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .offset {
+                            IntOffset(
+                                x = offset.value.x.roundToInt(),
+                                y = (offset.value.y + dismissOffsetY.value).roundToInt()
+                            )
+                        }
+                        .graphicsLayer {
+                            scaleX = scale.value
+                            scaleY = scale.value
+                            rotationZ = rotationAngle
+                        },
+                    contentScale = ContentScale.Fit
+                )
+            }
 
             // Tilt-shift blur guide overlay if active
             if (blurMode == "Линейное") {
