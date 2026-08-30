@@ -1069,6 +1069,7 @@ fun ChatListScreen(viewModel: AppViewModel, navController: NavController, isStor
     val chats by viewModel.chats.collectAsStateWithLifecycle()
     val drafts by viewModel.drafts.collectAsStateWithLifecycle()
     val typingChats by viewModel.typingChats.collectAsState()
+    val userPresences by viewModel.userPresences.collectAsStateWithLifecycle()
     var searchQuery by remember { mutableStateOf("") }
     var selectedTabIndex by remember { mutableStateOf(0) }
     val tabs = listOf("All", "Personal", "Groups", "Channels", "Bots")
@@ -1228,6 +1229,7 @@ fun ChatListScreen(viewModel: AppViewModel, navController: NavController, isStor
                     isTyping = typingChats.contains(chat.id),
                     draftText = drafts[chat.id],
                     viewModel = viewModel,
+                    presence = userPresences[chat.id],
                     onClick = { 
                         focusManager.clearFocus()
                         keyboardController?.hide()
@@ -1276,6 +1278,7 @@ fun SwipeableChatListItem(
     isTyping: Boolean = false, 
     draftText: String? = null,
     viewModel: AppViewModel, 
+    presence: com.example.ui.UserPresence? = null, 
     onClick: () -> Unit, 
     onAvatarClick: () -> Unit = {}
 ) {
@@ -1316,6 +1319,7 @@ fun SwipeableChatListItem(
                 chat = chat, 
                 isTyping = isTyping, 
                 draftText = draftText,
+                presence = presence,
                 onClick = onClick, 
                 onAvatarClick = onAvatarClick
             )
@@ -1328,6 +1332,7 @@ fun ChatListItem(
     chat: Chat, 
     isTyping: Boolean = false, 
     draftText: String? = null,
+    presence: com.example.ui.UserPresence? = null,
     onClick: () -> Unit, 
     onAvatarClick: () -> Unit = {}
 ) {
@@ -1384,6 +1389,20 @@ fun ChatListItem(
                     Spacer(Modifier.width(4.dp))
                 }
                 Text(chat.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+            }
+            if (!chat.isGroup && !chat.isChannel && !chat.isBot) {
+                if (presence?.isOnline == true) {
+                    Text("Online", style = MaterialTheme.typography.labelSmall, color = Color(0xFF4CAF50))
+                } else if (presence != null && presence.lastSeen > 0) {
+                    val diff = System.currentTimeMillis() - presence.lastSeen
+                    val timeStr = when {
+                        diff < 60_000 -> "just now"
+                        diff < 3600_000 -> "${diff / 60_000}m ago"
+                        diff < 86400_000 -> "${diff / 3600_000}h ago"
+                        else -> "${diff / 86400_000}d ago"
+                    }
+                    Text("Last active $timeStr", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+                }
             }
             if (isTyping) {
                 Text(
@@ -2699,6 +2718,7 @@ fun AdminPanelStarsButton(
 fun ArchivedChatsScreen(viewModel: AppViewModel, navController: NavController) {
     val chats by viewModel.chats.collectAsStateWithLifecycle()
     val typingChats by viewModel.typingChats.collectAsState()
+    val userPresences by viewModel.userPresences.collectAsStateWithLifecycle()
     val archivedChats = chats.filter { it.isArchived && !it.isBlocked }
 
     var showMenu by remember { mutableStateOf(false) }
@@ -2772,6 +2792,7 @@ fun ArchivedChatsScreen(viewModel: AppViewModel, navController: NavController) {
                     chat = chat, 
                     isTyping = typingChats.contains(chat.id),
                     viewModel = viewModel,
+                    presence = userPresences[chat.id],
                     onClick = { navController.navigate("chat/${chat.id}") },
                     onAvatarClick = { navController.navigate("profile/${chat.id}") }
                 )

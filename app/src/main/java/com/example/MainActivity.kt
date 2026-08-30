@@ -167,6 +167,12 @@ class MainActivity : ComponentActivity() {
 
 
             val userPrefs = com.example.data.UserPreferencesRepository(applicationContext.dataStore)
+            
+            // Start presence background worker
+            try {
+                com.example.ui.PresenceManager.updatePresence(applicationContext, "current_user_id", true)
+            } catch(e: Exception) { e.printStackTrace() }
+            
             val factory = object : ViewModelProvider.Factory {
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
                     if (modelClass.isAssignableFrom(AppViewModel::class.java)) {

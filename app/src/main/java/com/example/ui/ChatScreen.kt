@@ -1,4 +1,6 @@
 package com.example.ui
+
+import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 
@@ -4862,23 +4864,34 @@ fun ProfileScreen(viewModel: AppViewModel, chatId: String, navController: NavCon
                 val isOnline = presence?.isOnline == true
                 val lastSeen = presence?.lastSeen ?: 0L
 
-                val statusText = if (isLive) {
-                    "🔴 В эфире • LIVE (👁 ${activeStream?.viewerCount ?: 1})"
-                } else if (isOnline) {
-                    "online"
-                } else if (lastSeen > 0) {
-                    val diff = System.currentTimeMillis() - lastSeen
-                    if (diff < 60_000) "last seen just now"
-                    else if (diff < 3600_000) "last seen ${diff / 60_000} minutes ago"
-                    else "last seen ${diff / 3600_000} hours ago"
-                } else {
-                    "last seen recently"
+                // Rotating indicator logic
+                val rotatingStatuses = listOf("Online", "Recently Online", "Month Ago", "Long Ago")
+                val rotatingColors = listOf(Color(0xFF4CAF50), Color(0xFF81C784), MaterialTheme.colorScheme.onSurfaceVariant, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=0.5f))
+                
+                var rotatingIndex by remember { mutableIntStateOf(0) }
+                
+                LaunchedEffect(Unit) {
+                    while (true) {
+                        kotlinx.coroutines.delay(2000)
+                        rotatingIndex = (rotatingIndex + 1) % rotatingStatuses.size
+                    }
                 }
-                
-                val statusColor = if (isLive) Color(0xFFFF1744) else if (isOnline) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurfaceVariant
 
-                Text(statusText, style = MaterialTheme.typography.bodyMedium, color = statusColor, fontWeight = if (isLive) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Normal)
-                
+                androidx.compose.animation.AnimatedContent(
+                    targetState = rotatingIndex,
+                    transitionSpec = {
+                        androidx.compose.animation.slideInVertically { height -> height } + androidx.compose.animation.fadeIn() togetherWith
+                        androidx.compose.animation.slideOutVertically { height -> -height } + androidx.compose.animation.fadeOut()
+                    },
+                    label = "status_rotation"
+                ) { targetIndex ->
+                    Text(
+                        text = rotatingStatuses[targetIndex], 
+                        style = MaterialTheme.typography.bodyMedium, 
+                        color = rotatingColors[targetIndex]
+                    )
+                }
+
                 Spacer(modifier = Modifier.height(32.dp))
 
                 if (isLive) {

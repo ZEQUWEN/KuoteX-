@@ -1,37 +1,81 @@
 package com.example
 
 import android.app.Application
+import android.util.Log
 import coil.ImageLoader
 import coil.ImageLoaderFactory
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
 import com.example.analytics.FirebaseAnalyticsHelper
+import org.json.JSONObject
+import java.io.InputStream
 
 class MyApplication : Application(), ImageLoaderFactory {
     override fun onCreate() {
         super.onCreate()
-        try {
-            if (FirebaseApp.getApps(this).isEmpty()) {
-                val options = FirebaseOptions.Builder()
-                    .setApplicationId("1:372420700937:android:a1b2c3d4e5f6789012345678")
-                    .setApiKey("AIzaSyDummyApiKeyForAnalyticsLogging12345")
-                    .setProjectId("ais-dev-lnnfj7dsvqbi5276snipon")
-                    .setGcmSenderId("372420700937")
-                    .build()
-                FirebaseApp.initializeApp(this, options)
-            }
-        } catch (e: Exception) {
-            android.util.Log.w("MyApplication", "FirebaseApp init: ${e.message}")
-        }
+        initFirebase()
         try {
             FirebaseAnalyticsHelper.init(this)
         } catch (e: Exception) {
-            android.util.Log.w("MyApplication", "FirebaseAnalyticsHelper init: ${e.message}")
+            Log.w("MyApplication", "FirebaseAnalyticsHelper init: ${e.message}")
         }
         try {
             com.example.data.FirestoreUserRoleManager.init(this)
         } catch (e: Exception) {
-            android.util.Log.w("MyApplication", "FirestoreUserRoleManager init: ${e.message}")
+            Log.w("MyApplication", "FirestoreUserRoleManager init: ${e.message}")
+        }
+    }
+
+    private fun initFirebase() {
+        try {
+            if (FirebaseApp.getApps(this).isEmpty()) {
+                var options: FirebaseOptions? = null
+
+                try {
+                    val inputStream: InputStream = assets.open("google-services.json")
+                    val jsonStr = inputStream.bufferedReader().use { it.readText() }
+                    val rootJson = JSONObject(jsonStr)
+                    val projectInfo = rootJson.getJSONObject("project_info")
+                    val projectId = projectInfo.getString("project_id")
+                    val projectNumber = projectInfo.optString("project_number", "")
+                    val storageBucket = projectInfo.optString("storage_bucket", "$projectId.firebasestorage.app")
+
+                    val clients = rootJson.getJSONArray("client")
+                    if (clients.length() > 0) {
+                        val client0 = clients.getJSONObject(0)
+                        val clientInfo = client0.getJSONObject("client_info")
+                        val appId = clientInfo.getString("mobilesdk_app_id")
+                        val apiKeys = client0.getJSONArray("api_key")
+                        val apiKey = if (apiKeys.length() > 0) apiKeys.getJSONObject(0).getString("current_key") else ""
+
+                        options = FirebaseOptions.Builder()
+                            .setApplicationId(appId)
+                            .setApiKey(apiKey)
+                            .setProjectId(projectId)
+                            .setGcmSenderId(projectNumber)
+                            .setStorageBucket(storageBucket)
+                            .build()
+                        Log.i("MyApplication", "FirebaseOptions loaded from google-services.json (project=$projectId)")
+                    }
+                } catch (e: Exception) {
+                    Log.d("MyApplication", "Direct asset load exception: ${e.message}")
+                }
+
+                if (options == null) {
+                    options = FirebaseOptions.Builder()
+                        .setApplicationId("1:372420700937:android:a1b2c3d4e5f6789012345678")
+                        .setApiKey("AIzaSyDummyApiKeyForAnalyticsLogging12345")
+                        .setProjectId("ais-dev-lnnfj7dsvqbi5276snipon")
+                        .setGcmSenderId("372420700937")
+                        .setStorageBucket("ais-dev-lnnfj7dsvqbi5276snipon.firebasestorage.app")
+                        .build()
+                }
+
+                FirebaseApp.initializeApp(this, options)
+                Log.i("MyApplication", "FirebaseApp initialized with project: ${options.projectId}")
+            }
+        } catch (e: Exception) {
+            Log.w("MyApplication", "FirebaseApp init error: ${e.message}")
         }
     }
 
