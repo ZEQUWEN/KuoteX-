@@ -69,6 +69,8 @@ fun ChannelProfileScreen(
     val palette = TelegramProfilePalettes.getPalette(customization.profileColorId)
 
     val members by viewModel.getGroupMembers(chatId).collectAsState(initial = emptyList())
+    val activeAccount by viewModel.activeAccount.collectAsStateWithLifecycle()
+    val isAdmin = members.find { it.userId == (activeAccount?.id ?: "me") }?.isAdmin ?: true
     val pollsMap by ChannelCustomizationManager.getPollsFlow(chatId).collectAsState()
     val polls = pollsMap[chatId] ?: emptyList()
 
@@ -330,12 +332,6 @@ fun ChannelProfileScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { navController.navigate("channel_appearance/$chatId") }) {
-                        Icon(Icons.Filled.Palette, contentDescription = "Оформление", tint = Color.White)
-                    }
-                    IconButton(onClick = { navController.navigate("channel_admin/$chatId") }) {
-                        Icon(Icons.Filled.Edit, contentDescription = "Изменить", tint = Color.White)
-                    }
                     Box {
                         IconButton(onClick = { showOptionsMenu = true }) {
                             Icon(Icons.Filled.MoreVert, contentDescription = "Опции", tint = Color.White)
@@ -345,6 +341,25 @@ fun ChannelProfileScreen(
                             onDismissRequest = { showOptionsMenu = false },
                             containerColor = Color(0xFF1E2433)
                         ) {
+                            if (isAdmin) {
+                                DropdownMenuItem(
+                                    text = { Text("Изменить", color = Color.White) },
+                                    leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null, tint = Color.White.copy(alpha = 0.7f)) },
+                                    onClick = {
+                                        showOptionsMenu = false
+                                        navController.navigate("channel_admin/$chatId")
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Оформление", color = Color.White) },
+                                    leadingIcon = { Icon(Icons.Filled.Palette, contentDescription = null, tint = Color.White.copy(alpha = 0.7f)) },
+                                    onClick = {
+                                        showOptionsMenu = false
+                                        navController.navigate("channel_appearance/$chatId")
+                                    }
+                                )
+                                HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+                            }
                             DropdownMenuItem(
                                 text = { Text("Поделиться", color = Color.White) },
                                 leadingIcon = { Icon(Icons.Filled.Share, contentDescription = null, tint = Color.White.copy(alpha = 0.7f)) },
