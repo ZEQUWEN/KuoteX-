@@ -1574,7 +1574,7 @@ class AppViewModel(val repository: MessengerRepository, val userPrefs: com.examp
     ): AuthResult<FirebaseUserInfo> {
         val result = FirebaseAuthManager.signUpWithEmail(email, pass, displayName, photoUrl)
         if (result is AuthResult.Success) {
-            val user = result.data
+            val user = (result as AuthResult.Success<com.example.auth.FirebaseUserInfo>).data
             val cleanUsername = if (username.startsWith("@")) username else "@$username"
             val account = UserAccount(
                 id = user.uid,
@@ -1605,7 +1605,7 @@ class AppViewModel(val repository: MessengerRepository, val userPrefs: com.examp
     ): AuthResult<FirebaseUserInfo> {
         val result = FirebaseAuthManager.signInWithEmail(email, pass)
         if (result is AuthResult.Success) {
-            val user = result.data
+            val user = (result as AuthResult.Success<com.example.auth.FirebaseUserInfo>).data
             val cleanEmailPrefix = email.substringBefore("@")
             val existing = repository.allAccounts.firstOrNull()?.find { 
                 it.id == user.uid || 
@@ -1640,10 +1640,25 @@ class AppViewModel(val repository: MessengerRepository, val userPrefs: com.examp
         return result
     }
 
+    suspend fun signInWithGoogle(context: android.content.Context): AuthResult<FirebaseUserInfo> {
+        val result = FirebaseAuthManager.signInWithGoogle(context)
+        if (result is AuthResult.Success) {
+            val user = (result as AuthResult.Success<com.example.auth.FirebaseUserInfo>).data
+            com.example.ui.PresenceManager.updatePresence(context, user.uid, true)
+            com.example.data.FirestoreUserRoleManager.syncUserRoleToFirestore(
+                userId = user.uid,
+                isAdmin = false,
+                isModerator = false,
+                updatedBy = "Google Auth"
+            )
+        }
+        return result
+    }
+
     suspend fun signInAnonymouslyWithFirebase(): AuthResult<FirebaseUserInfo> {
         val result = FirebaseAuthManager.signInAnonymously()
         if (result is AuthResult.Success) {
-            val user = result.data
+            val user = (result as AuthResult.Success<com.example.auth.FirebaseUserInfo>).data
             val account = UserAccount(
                 id = user.uid,
                 username = "@guest_${user.uid.take(6)}",

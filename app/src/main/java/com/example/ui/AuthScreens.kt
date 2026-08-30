@@ -293,6 +293,7 @@ fun ForgotPasswordDialog(
 
 @Composable
 fun LoginScreen(
+    context: android.content.Context = androidx.compose.ui.platform.LocalContext.current,
     accounts: List<UserAccount>,
     onNavigateToRegister: () -> Unit,
     onLoginSuccess: (String) -> Unit,
@@ -494,18 +495,18 @@ fun LoginScreen(
 
                             Spacer(Modifier.height(8.dp))
 
-                            OutlinedButton(
+OutlinedButton(
                                 onClick = {
                                     scope.launch {
                                         isLoading = true
                                         val result = if (viewModel != null) {
-                                            viewModel.signInAnonymouslyWithFirebase()
+                                            viewModel.signInWithGoogle(context)
                                         } else {
-                                            FirebaseAuthManager.signInAnonymously()
+                                            FirebaseAuthManager.signInWithGoogle(context)
                                         }
                                         isLoading = false
                                         if (result is AuthResult.Success) {
-                                            onLoginSuccess(result.data.uid)
+                                            onLoginSuccess((result as AuthResult.Success<com.example.auth.FirebaseUserInfo>).data.uid)
                                         } else if (result is AuthResult.Error) {
                                             errorMessage = result.message
                                         }
@@ -513,9 +514,9 @@ fun LoginScreen(
                                 },
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Icon(Icons.Filled.PersonOutline, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Icon(Icons.Filled.AccountCircle, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.width(8.dp))
-                                Text("Войти как Гость (Firebase)")
+                                Text("Войти через Google")
                             }
                         } else {
                             OutlinedTextField(

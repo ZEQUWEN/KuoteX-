@@ -4,8 +4,17 @@ import android.net.Uri
 import android.util.Log
 import com.example.analytics.AnalyticsTracker
 import com.example.analytics.FirebaseAnalyticsHelper
+import android.content.Context
+
+import androidx.credentials.CredentialManager
+import androidx.credentials.GetCredentialRequest
+import androidx.credentials.CustomCredential
+import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthException
+import kotlinx.coroutines.tasks.await
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.UserProfileChangeRequest
 import kotlinx.coroutines.CoroutineScope
@@ -59,6 +68,52 @@ sealed class AuthState {
  * - Local fallback authentication when offline or developing in sandbox
  */
 object FirebaseAuthManager {
+
+    suspend fun signInWithGoogle(context: Context): AuthResult<FirebaseUserInfo> {
+        return try {
+            val credentialManager = CredentialManager.create(context)
+            // Use the client ID from your google-services.json oauth_client type 3 (Web client)
+            val webClientId = "372420700937-dummyclientidforauth.apps.googleusercontent.com"
+            
+            val googleIdOption = GetGoogleIdOption.Builder()
+                .setFilterByAuthorizedAccounts(false)
+                .setServerClientId(webClientId)
+                .setAutoSelectEnabled(true)
+                .build()
+
+            val request = GetCredentialRequest.Builder()
+                .addCredentialOption(googleIdOption)
+                .build()
+
+            val result = credentialManager.getCredential(context, request)
+            val credential = result.credential
+
+            if (credential is CustomCredential && credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
+                val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
+                val idToken = googleIdTokenCredential.idToken
+                val firebaseCredential = GoogleAuthProvider.getCredential(idToken, null)
+                val auth = getAuth() ?: return AuthResult.Error("Firebase Auth not initialized")
+                
+                val authResult = auth.signInWithCredential(firebaseCredential).await()
+                val user = authResult.user
+                if (user != null) {
+                    val userInfo = mapFirebaseUser(user)
+                    _currentUser.value = userInfo
+                    _authState.value = AuthState.Authenticated(userInfo)
+                    AuthResult.Success(userInfo)
+                } else {
+                    AuthResult.Error("Firebase Auth returned null user after Google Sign-In")
+                }
+            } else {
+                AuthResult.Error("Unexpected credential type: ${credential.type}")
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("FirebaseAuthManager", "Google Sign-In failed", e)
+            AuthResult.Error(e.message ?: "Google Sign-In failed")
+        }
+    }
+
+
 
     private const val TAG = "FirebaseAuthManager"
     private val scope = CoroutineScope(Dispatchers.IO)

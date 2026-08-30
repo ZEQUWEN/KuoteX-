@@ -590,7 +590,7 @@ object FirestoreUserRoleManager {
     /**
      * Synchronizes a specific user's role mutation to Firestore Cloud Collection.
      */
-    private fun syncUserRoleToFirestore(
+    fun syncUserRoleToFirestore(
         userId: String,
         isAdmin: Boolean,
         isModerator: Boolean,
