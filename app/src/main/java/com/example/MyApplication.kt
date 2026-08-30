@@ -9,6 +9,7 @@ import com.google.firebase.appcheck.appCheck
 import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
+import com.google.firebase.initialize
 import com.example.analytics.FirebaseAnalyticsHelper
 import org.json.JSONObject
 import java.io.InputStream
@@ -74,8 +75,12 @@ class MyApplication : Application(), ImageLoaderFactory {
                         .build()
                 }
 
-                FirebaseApp.initializeApp(this, options)
-                Log.i("MyApplication", "FirebaseApp initialized with project: ${options.projectId}")
+                if (options != null) {
+                    Firebase.initialize(context = this, options = options)
+                } else {
+                    Firebase.initialize(context = this)
+                }
+                Log.i("MyApplication", "Firebase initialized successfully")
                 
                 Firebase.appCheck.installAppCheckProviderFactory(
                     PlayIntegrityAppCheckProviderFactory.getInstance()
