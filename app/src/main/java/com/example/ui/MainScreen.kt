@@ -570,8 +570,8 @@ fun MainAppNavigation(viewModel: AppViewModel) {
                             composable(
                                 route = "profile/{chatId}",
                                 enterTransition = {
-                                    slideIntoContainer(
-                                        towards = AnimatedContentTransitionScope.SlideDirection.Up,
+                                    slideInVertically(
+                                        initialOffsetY = { it },
                                         animationSpec = spring(
                                             dampingRatio = Spring.DampingRatioLowBouncy,
                                             stiffness = Spring.StiffnessMediumLow
@@ -579,20 +579,20 @@ fun MainAppNavigation(viewModel: AppViewModel) {
                                     ) + fadeIn(animationSpec = tween(280))
                                 },
                                 exitTransition = {
-                                    slideOutOfContainer(
-                                        towards = AnimatedContentTransitionScope.SlideDirection.Down,
+                                    slideOutVertically(
+                                        targetOffsetY = { it },
                                         animationSpec = tween(280, easing = FastOutSlowInEasing)
                                     ) + fadeOut(animationSpec = tween(220))
                                 },
                                 popEnterTransition = {
-                                    slideIntoContainer(
-                                        towards = AnimatedContentTransitionScope.SlideDirection.Up,
+                                    slideInVertically(
+                                        initialOffsetY = { it },
                                         animationSpec = tween(250, easing = FastOutSlowInEasing)
                                     ) + fadeIn(animationSpec = tween(250))
                                 },
                                 popExitTransition = {
-                                    slideOutOfContainer(
-                                        towards = AnimatedContentTransitionScope.SlideDirection.Down,
+                                    slideOutVertically(
+                                        targetOffsetY = { it },
                                         animationSpec = spring(
                                             dampingRatio = Spring.DampingRatioNoBouncy,
                                             stiffness = Spring.StiffnessMediumLow
@@ -618,8 +618,8 @@ fun MainAppNavigation(viewModel: AppViewModel) {
                             composable(
                                 route = "group_admin/{chatId}",
                                 enterTransition = {
-                                    slideIntoContainer(
-                                        towards = AnimatedContentTransitionScope.SlideDirection.Up,
+                                    slideInVertically(
+                                        initialOffsetY = { it },
                                         animationSpec = spring(
                                             dampingRatio = Spring.DampingRatioLowBouncy,
                                             stiffness = Spring.StiffnessMediumLow
@@ -627,20 +627,20 @@ fun MainAppNavigation(viewModel: AppViewModel) {
                                     ) + fadeIn(animationSpec = tween(280))
                                 },
                                 exitTransition = {
-                                    slideOutOfContainer(
-                                        towards = AnimatedContentTransitionScope.SlideDirection.Down,
+                                    slideOutVertically(
+                                        targetOffsetY = { it },
                                         animationSpec = tween(280, easing = FastOutSlowInEasing)
                                     ) + fadeOut(animationSpec = tween(220))
                                 },
                                 popEnterTransition = {
-                                    slideIntoContainer(
-                                        towards = AnimatedContentTransitionScope.SlideDirection.Up,
+                                    slideInVertically(
+                                        initialOffsetY = { it },
                                         animationSpec = tween(250, easing = FastOutSlowInEasing)
                                     ) + fadeIn(animationSpec = tween(250))
                                 },
                                 popExitTransition = {
-                                    slideOutOfContainer(
-                                        towards = AnimatedContentTransitionScope.SlideDirection.Down,
+                                    slideOutVertically(
+                                        targetOffsetY = { it },
                                         animationSpec = spring(
                                             dampingRatio = Spring.DampingRatioNoBouncy,
                                             stiffness = Spring.StiffnessMediumLow
@@ -658,8 +658,8 @@ fun MainAppNavigation(viewModel: AppViewModel) {
                             composable(
                                 route = "channel_admin/{chatId}",
                                 enterTransition = {
-                                    slideIntoContainer(
-                                        towards = AnimatedContentTransitionScope.SlideDirection.Up,
+                                    slideInVertically(
+                                        initialOffsetY = { it },
                                         animationSpec = spring(
                                             dampingRatio = Spring.DampingRatioLowBouncy,
                                             stiffness = Spring.StiffnessMediumLow
@@ -667,20 +667,20 @@ fun MainAppNavigation(viewModel: AppViewModel) {
                                     ) + fadeIn(animationSpec = tween(280))
                                 },
                                 exitTransition = {
-                                    slideOutOfContainer(
-                                        towards = AnimatedContentTransitionScope.SlideDirection.Down,
+                                    slideOutVertically(
+                                        targetOffsetY = { it },
                                         animationSpec = tween(280, easing = FastOutSlowInEasing)
                                     ) + fadeOut(animationSpec = tween(220))
                                 },
                                 popEnterTransition = {
-                                    slideIntoContainer(
-                                        towards = AnimatedContentTransitionScope.SlideDirection.Up,
+                                    slideInVertically(
+                                        initialOffsetY = { it },
                                         animationSpec = tween(250, easing = FastOutSlowInEasing)
                                     ) + fadeIn(animationSpec = tween(250))
                                 },
                                 popExitTransition = {
-                                    slideOutOfContainer(
-                                        towards = AnimatedContentTransitionScope.SlideDirection.Down,
+                                    slideOutVertically(
+                                        targetOffsetY = { it },
                                         animationSpec = spring(
                                             dampingRatio = Spring.DampingRatioNoBouncy,
                                             stiffness = Spring.StiffnessMediumLow
@@ -698,8 +698,8 @@ fun MainAppNavigation(viewModel: AppViewModel) {
                             composable(
                                 route = "channel_appearance/{chatId}",
                                 enterTransition = {
-                                    slideIntoContainer(
-                                        towards = AnimatedContentTransitionScope.SlideDirection.Up,
+                                    slideInVertically(
+                                        initialOffsetY = { it },
                                         animationSpec = spring(
                                             dampingRatio = Spring.DampingRatioLowBouncy,
                                             stiffness = Spring.StiffnessMediumLow
@@ -707,20 +707,20 @@ fun MainAppNavigation(viewModel: AppViewModel) {
                                     ) + fadeIn(animationSpec = tween(280))
                                 },
                                 exitTransition = {
-                                    slideOutOfContainer(
-                                        towards = AnimatedContentTransitionScope.SlideDirection.Down,
+                                    slideOutVertically(
+                                        targetOffsetY = { it },
                                         animationSpec = tween(280, easing = FastOutSlowInEasing)
                                     ) + fadeOut(animationSpec = tween(220))
                                 },
                                 popEnterTransition = {
-                                    slideIntoContainer(
-                                        towards = AnimatedContentTransitionScope.SlideDirection.Up,
+                                    slideInVertically(
+                                        initialOffsetY = { it },
                                         animationSpec = tween(250, easing = FastOutSlowInEasing)
                                     ) + fadeIn(animationSpec = tween(250))
                                 },
                                 popExitTransition = {
-                                    slideOutOfContainer(
-                                        towards = AnimatedContentTransitionScope.SlideDirection.Down,
+                                    slideOutVertically(
+                                        targetOffsetY = { it },
                                         animationSpec = spring(
                                             dampingRatio = Spring.DampingRatioNoBouncy,
                                             stiffness = Spring.StiffnessMediumLow
@@ -738,8 +738,8 @@ fun MainAppNavigation(viewModel: AppViewModel) {
                             composable(
                                 route = "channel_boost/{chatId}",
                                 enterTransition = {
-                                    slideIntoContainer(
-                                        towards = AnimatedContentTransitionScope.SlideDirection.Up,
+                                    slideInVertically(
+                                        initialOffsetY = { it },
                                         animationSpec = spring(
                                             dampingRatio = Spring.DampingRatioLowBouncy,
                                             stiffness = Spring.StiffnessMediumLow
@@ -747,20 +747,20 @@ fun MainAppNavigation(viewModel: AppViewModel) {
                                     ) + fadeIn(animationSpec = tween(280))
                                 },
                                 exitTransition = {
-                                    slideOutOfContainer(
-                                        towards = AnimatedContentTransitionScope.SlideDirection.Down,
+                                    slideOutVertically(
+                                        targetOffsetY = { it },
                                         animationSpec = tween(280, easing = FastOutSlowInEasing)
                                     ) + fadeOut(animationSpec = tween(220))
                                 },
                                 popEnterTransition = {
-                                    slideIntoContainer(
-                                        towards = AnimatedContentTransitionScope.SlideDirection.Up,
+                                    slideInVertically(
+                                        initialOffsetY = { it },
                                         animationSpec = tween(250, easing = FastOutSlowInEasing)
                                     ) + fadeIn(animationSpec = tween(250))
                                 },
                                 popExitTransition = {
-                                    slideOutOfContainer(
-                                        towards = AnimatedContentTransitionScope.SlideDirection.Down,
+                                    slideOutVertically(
+                                        targetOffsetY = { it },
                                         animationSpec = spring(
                                             dampingRatio = Spring.DampingRatioNoBouncy,
                                             stiffness = Spring.StiffnessMediumLow

@@ -1,5 +1,7 @@
 package com.example.ui
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -357,6 +359,7 @@ fun ChatScreen(viewModel: AppViewModel, chatId: String, navController: NavContro
     var lightboxInitialIndex by remember { mutableIntStateOf(0) }
     var activeLightboxItems by remember { mutableStateOf<List<LightboxMediaItem>>(emptyList()) }
     var showLightboxViewer by remember { mutableStateOf(false) }
+    var activeVideoNoteToView by remember { mutableStateOf<Message?>(null) }
     val activity = remember(context) {
         var currentContext = context
         while (currentContext is android.content.ContextWrapper) {
@@ -445,35 +448,6 @@ fun ChatScreen(viewModel: AppViewModel, chatId: String, navController: NavContro
                                     Icons.Filled.PushPin,
                                     contentDescription = "Закрепить/Открепить"
                                 )
-                            }
-
-                            // If single photo selected, open in gallery icon
-                            if (singleMsg?.mediaPath != null) {
-                                IconButton(onClick = {
-                                    val msgSender = when {
-                                        singleMsg.senderId == activeAccount?.id -> "Вы"
-                                        chat.isGroup -> groupMembers.find { it.userId == singleMsg.senderId }?.userName ?: singleMsg.senderId
-                                        else -> chat.title
-                                    }
-                                    val item = extractLightboxMediaItem(singleMsg, msgSender, singleMsg.senderId == activeAccount?.id)
-                                    if (item != null) {
-                                        val allChatImages = messages.mapNotNull { m ->
-                                            val sName = when {
-                                                m.senderId == activeAccount?.id -> "Вы"
-                                                chat.isGroup -> groupMembers.find { it.userId == m.senderId }?.userName ?: m.senderId
-                                                else -> chat.title
-                                            }
-                                            extractLightboxMediaItem(m, sName, m.senderId == activeAccount?.id)
-                                        }
-                                        val clickedIndex = allChatImages.indexOfFirst { it.messageId == item.messageId }.coerceAtLeast(0)
-                                        activeLightboxItems = if (allChatImages.isNotEmpty()) allChatImages else listOf(item)
-                                        lightboxInitialIndex = clickedIndex
-                                        showLightboxViewer = true
-                                    }
-                                    selectedMessageIds = emptySet()
-                                }) {
-                                    Icon(Icons.Filled.PhotoLibrary, contentDescription = "Открыть фото")
-                                }
                             }
                         }
 
@@ -905,150 +879,122 @@ fun ChatScreen(viewModel: AppViewModel, chatId: String, navController: NavContro
             }
         },
         bottomBar = {
-            if (isSelectionMode) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    shadowElevation = 8.dp
-                ) {
-                    val selMsgs = messages.filter { selectedMessageIds.contains(it.id) }
-                    val singleMsg = if (selectedMessageIds.size == 1) selMsgs.firstOrNull() else null
-                    val hasPhoto = singleMsg?.mediaPath != null
-
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .navigationBarsPadding()
-                            .padding(bottom = 8.dp)
+            AnimatedContent(
+                targetState = isSelectionMode,
+                transitionSpec = {
+                    (slideInVertically(animationSpec = tween(280, easing = FastOutSlowInEasing)) { height -> height } + fadeIn(animationSpec = tween(280)))
+                        .togetherWith(slideOutVertically(animationSpec = tween(200, easing = FastOutSlowInEasing)) { height -> height } + fadeOut(animationSpec = tween(200)))
+                },
+                label = "multimodal_bottom_bar_anim"
+            ) { inSelection ->
+                if (inSelection) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        shadowElevation = 8.dp
                     ) {
-                        // Quick Emoji Reactions Row
-                        Row(
+                        val selMsgs = messages.filter { selectedMessageIds.contains(it.id) }
+                        val singleMsg = if (selectedMessageIds.size == 1) selMsgs.firstOrNull() else null
+
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 6.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                                .navigationBarsPadding()
+                                .padding(bottom = 8.dp)
                         ) {
-                            val emojis = listOf("👍", "❤️", "🔥", "😂", "👏", "😮", "🎉")
-                            emojis.forEach { emoji ->
-                                Box(
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .clip(CircleShape)
-                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
-                                        .clickable {
-                                            selectedMessageIds.forEach { msgId ->
-                                                viewModel.addReaction(msgId, emoji)
-                                            }
-                                            android.widget.Toast.makeText(context, "Реакция добавлена", android.widget.Toast.LENGTH_SHORT).show()
+                            // Quick Emoji Reactions Row
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                val emojis = listOf("👍", "❤️", "🔥", "😂", "👏", "😮", "🎉")
+                                emojis.forEach { emoji ->
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(CircleShape)
+                                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                                            .clickable {
+                                                selectedMessageIds.forEach { msgId ->
+                                                    viewModel.addReaction(msgId, emoji)
+                                                }
+                                                android.widget.Toast.makeText(context, "Реакция добавлена", android.widget.Toast.LENGTH_SHORT).show()
+                                                selectedMessageIds = emptySet()
+                                            },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(text = emoji, fontSize = 18.sp)
+                                    }
+                                }
+                            }
+
+                            HorizontalDivider(
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                                thickness = 0.5.dp,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
+                            )
+
+                            // Main Selection Actions Row
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // Left: Reply / Delete
+                                if (selectedMessageIds.size == 1) {
+                                    TextButton(
+                                        onClick = {
+                                            replyingToMessage = singleMsg
+                                            customQuoteText = null
+                                            selectedMessageIds = emptySet()
+                                        }
+                                    ) {
+                                        Icon(Icons.AutoMirrored.Filled.Reply, contentDescription = null, modifier = Modifier.size(20.dp))
+                                        Spacer(Modifier.width(6.dp))
+                                        Text("Ответить")
+                                    }
+                                } else {
+                                    TextButton(
+                                        onClick = { showBatchDeleteDialog = true }
+                                    ) {
+                                        Icon(Icons.Filled.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp))
+                                        Spacer(Modifier.width(6.dp))
+                                        Text("Удалить (${selectedMessageIds.size})", color = MaterialTheme.colorScheme.error)
+                                    }
+                                }
+
+                                // Right: Forward
+                                if (!chat.isSecret) {
+                                    Button(
+                                        onClick = {
+                                            messagesToForward = selMsgs
                                             selectedMessageIds = emptySet()
                                         },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(text = emoji, fontSize = 18.sp)
-                                }
-                            }
-                        }
-
-                        HorizontalDivider(
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                            thickness = 0.5.dp,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
-                        )
-
-                        // Main Selection Actions Row
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 6.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // Left: Reply / Delete
-                            if (selectedMessageIds.size == 1) {
-                                TextButton(
-                                    onClick = {
-                                        replyingToMessage = singleMsg
-                                        customQuoteText = null
-                                        selectedMessageIds = emptySet()
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) {
+                                        Icon(Icons.AutoMirrored.Filled.Forward, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        Spacer(Modifier.width(6.dp))
+                                        Text(if (selectedMessageIds.size > 1) "Переслать (${selectedMessageIds.size})" else "Переслать")
                                     }
-                                ) {
-                                    Icon(Icons.AutoMirrored.Filled.Reply, contentDescription = null, modifier = Modifier.size(20.dp))
-                                    Spacer(Modifier.width(6.dp))
-                                    Text("Ответить")
-                                }
-                            } else {
-                                TextButton(
-                                    onClick = { showBatchDeleteDialog = true }
-                                ) {
-                                    Icon(Icons.Filled.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp))
-                                    Spacer(Modifier.width(6.dp))
-                                    Text("Удалить (${selectedMessageIds.size})", color = MaterialTheme.colorScheme.error)
-                                }
-                            }
-
-                            // Center: If photo is selected, dedicated photo preview / edit button
-                            if (hasPhoto && singleMsg != null) {
-                                OutlinedButton(
-                                    onClick = {
-                                        val msgSender = when {
-                                            singleMsg.senderId == activeAccount?.id -> "Вы"
-                                            chat.isGroup -> groupMembers.find { it.userId == singleMsg.senderId }?.userName ?: singleMsg.senderId
-                                            else -> chat.title
-                                        }
-                                        val item = extractLightboxMediaItem(singleMsg, msgSender, singleMsg.senderId == activeAccount?.id)
-                                        if (item != null) {
-                                            val allChatImages = messages.mapNotNull { m ->
-                                                val sName = when {
-                                                    m.senderId == activeAccount?.id -> "Вы"
-                                                    chat.isGroup -> groupMembers.find { it.userId == m.senderId }?.userName ?: m.senderId
-                                                    else -> chat.title
-                                                }
-                                                extractLightboxMediaItem(m, sName, m.senderId == activeAccount?.id)
-                                            }
-                                            val clickedIndex = allChatImages.indexOfFirst { it.messageId == item.messageId }.coerceAtLeast(0)
-                                            activeLightboxItems = if (allChatImages.isNotEmpty()) allChatImages else listOf(item)
-                                            lightboxInitialIndex = clickedIndex
-                                            showLightboxViewer = true
-                                        }
-                                        selectedMessageIds = emptySet()
-                                    },
-                                    shape = RoundedCornerShape(12.dp),
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
-                                ) {
-                                    Icon(Icons.Filled.Image, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
-                                    Spacer(Modifier.width(6.dp))
-                                    Text("Открыть фото", color = MaterialTheme.colorScheme.primary)
-                                }
-                            }
-
-                            // Right: Forward
-                            if (!chat.isSecret) {
-                                Button(
-                                    onClick = {
-                                        messagesToForward = selMsgs
-                                        selectedMessageIds = emptySet()
-                                    },
-                                    shape = RoundedCornerShape(12.dp)
-                                ) {
-                                    Icon(Icons.AutoMirrored.Filled.Forward, contentDescription = null, modifier = Modifier.size(18.dp))
-                                    Spacer(Modifier.width(6.dp))
-                                    Text(if (selectedMessageIds.size > 1) "Переслать (${selectedMessageIds.size})" else "Переслать")
                                 }
                             }
                         }
                     }
-                }
-            } else if (chat.isBlocked) {
-                Surface(modifier = Modifier.fillMaxWidth().padding(16.dp), color = Color.Transparent) {
-                    Text(
-                        "You blocked this user.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.fillMaxWidth().wrapContentWidth(Alignment.CenterHorizontally)
-                    )
-                }
-            } else {
+                } else if (chat.isBlocked) {
+                    Surface(modifier = Modifier.fillMaxWidth().padding(16.dp), color = Color.Transparent) {
+                        Text(
+                            "You blocked this user.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.fillMaxWidth().wrapContentWidth(Alignment.CenterHorizontally)
+                        )
+                    }
+                } else {
                 Surface(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
                     shape = RoundedCornerShape(20.dp),
@@ -1562,11 +1508,12 @@ fun ChatScreen(viewModel: AppViewModel, chatId: String, navController: NavContro
                             modifier = Modifier.padding(horizontal = 4.dp)
                         )
                     }
-                        }
-                    }
                 }
             }
         }
+    }
+}
+}
     ) { padding ->
         
         if (showQuoteSelector && replyingToMessage != null) {
@@ -2484,6 +2431,43 @@ fun ChatScreen(viewModel: AppViewModel, chatId: String, navController: NavContro
                 }
             )
         }
+
+        if (activeVideoNoteToView != null) {
+            val vMsg = activeVideoNoteToView!!
+            val senderName = when {
+                vMsg.senderId == activeAccount?.id -> "Вы"
+                chat.isGroup -> groupMembers.find { it.userId == vMsg.senderId }?.userName ?: vMsg.senderId
+                else -> chat.title
+            }
+            var durText = "0:04"
+            if (!vMsg.documentData.isNullOrBlank()) {
+                try {
+                    val json = org.json.JSONObject(vMsg.documentData)
+                    val dur = json.optString("duration", "")
+                    if (dur.isNotBlank()) durText = dur
+                } catch (_: Exception) {}
+            } else if (vMsg.text.contains("(") && vMsg.text.contains(")")) {
+                durText = vMsg.text.substringAfter("(").substringBefore(")")
+            }
+
+            com.example.ui.components.TelegramVideoNoteViewerDialog(
+                senderName = senderName,
+                durationText = durText,
+                timestamp = vMsg.timestamp,
+                onDismiss = { activeVideoNoteToView = null },
+                onReply = {
+                    replyingToMessage = vMsg
+                    customQuoteText = null
+                    activeVideoNoteToView = null
+                },
+                onForward = if (!chat.isSecret) {
+                    {
+                        messagesToForward = listOf(vMsg)
+                        activeVideoNoteToView = null
+                    }
+                } else null
+            )
+        }
         Column(modifier = Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()) {
             if (!chat.isGroup && !chat.isChannel && !chat.isBot && !chat.isContact && !chat.isBlocked && !chat.isActionMenuDismissed) {
                 Surface(
@@ -2948,6 +2932,9 @@ fun ChatScreen(viewModel: AppViewModel, chatId: String, navController: NavContro
                                             activeLightboxItems = if (allChatImages.isNotEmpty()) allChatImages else listOf(clickedItem)
                                             lightboxInitialIndex = clickedIndex
                                             showLightboxViewer = true
+                                        },
+                                        onOpenVideoNote = {
+                                            activeVideoNoteToView = message
                                         }
                                     )
                                 }
@@ -4311,7 +4298,8 @@ fun MessageBubble(
     onLongClick3s: () -> Unit, 
     onAuthorClick: ((String) -> Unit)? = null,
     onButtonClick: ((String) -> Unit)? = null,
-    onImageClick: ((LightboxMediaItem) -> Unit)? = null
+    onImageClick: ((LightboxMediaItem) -> Unit)? = null,
+    onOpenVideoNote: (() -> Unit)? = null
 ) {
     val isVideoNote = message.mediaType == "video_note" ||
             (message.documentData != null && message.documentData.contains("\"video_note\"")) ||
@@ -4354,7 +4342,10 @@ fun MessageBubble(
                 isDelivered = message.isDelivered,
                 isRead = message.isRead,
                 isE2EEncrypted = message.isE2EEncrypted,
-                onClick = onClick,
+                isSelectionMode = isSelectionMode,
+                isSelected = isSelected,
+                onToggleSelect = onClick,
+                onOpenViewer = onOpenVideoNote,
                 onLongClick = onLongClick3s
             )
         }
@@ -4395,7 +4386,16 @@ fun MessageBubble(
                     )
                 )
                 .telegramMessageGestures(
-                    onClick = onClick,
+                    onClick = if (lightboxItem != null) {
+                        {
+                            if (isSelectionMode) {
+                                onClick()
+                            } else {
+                                onImageClick?.invoke(lightboxItem)
+                            }
+                            Unit
+                        }
+                    } else onClick,
                     onLongClick3s = onLongClick3s
                 )
                 .padding(12.dp)

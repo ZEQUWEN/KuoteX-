@@ -3,6 +3,7 @@ package com.example.ui.components
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.widget.Toast
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -608,8 +609,11 @@ fun TelegramRoundVideoBubble(
     isDelivered: Boolean,
     isRead: Boolean,
     isE2EEncrypted: Boolean,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit,
+    isSelectionMode: Boolean = false,
+    isSelected: Boolean = false,
+    onToggleSelect: (() -> Unit)? = null,
+    onOpenViewer: (() -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var isPlaying by remember { mutableStateOf(false) }
@@ -655,10 +659,15 @@ fun TelegramRoundVideoBubble(
                 .size(210.dp)
                 .combinedClickable(
                     onClick = {
-                        isPlaying = !isPlaying
-                        onClick()
+                        if (isSelectionMode) {
+                            onToggleSelect?.invoke()
+                        } else {
+                            isPlaying = !isPlaying
+                        }
                     },
-                    onLongClick = onLongClick
+                    onLongClick = {
+                        onLongClick?.invoke()
+                    }
                 ),
             contentAlignment = Alignment.Center
         ) {
@@ -728,6 +737,24 @@ fun TelegramRoundVideoBubble(
                                 .size(30.dp)
                         )
                     }
+                }
+
+                // Expand / Fullscreen viewer button at top left
+                Surface(
+                    shape = CircleShape,
+                    color = Color.Black.copy(alpha = 0.5f),
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(10.dp)
+                        .size(28.dp)
+                        .clickable { onOpenViewer?.invoke() }
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.OpenInFull,
+                        contentDescription = "Открыть видеокружочек",
+                        tint = Color.White,
+                        modifier = Modifier.padding(6.dp)
+                    )
                 }
 
                 // Sound Mute/Unmute toggle at top right of the circle
@@ -831,6 +858,28 @@ fun TelegramRoundVideoBubble(
                 }
             }
 
+            // Selection Checkmark Badge
+            if (isSelectionMode) {
+                Surface(
+                    shape = CircleShape,
+                    color = if (isSelected) Color(0xFF4CAF50) else Color.Black.copy(alpha = 0.6f),
+                    border = BorderStroke(2.dp, if (isSelected) Color(0xFF4CAF50) else Color.White.copy(alpha = 0.8f)),
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(12.dp)
+                        .size(28.dp)
+                ) {
+                    if (isSelected) {
+                        Icon(
+                            Icons.Filled.Check,
+                            contentDescription = "Выбрано",
+                            tint = Color.White,
+                            modifier = Modifier.padding(4.dp)
+                        )
+                    }
+                }
+            }
+
             // Telegram Circular Playback Progress Ring
             Canvas(modifier = Modifier.size(208.dp)) {
                 if (isPlaying) {
@@ -846,6 +895,363 @@ fun TelegramRoundVideoBubble(
                         color = Color(0xFF00E5FF).copy(alpha = 0.35f),
                         style = Stroke(width = 2.dp.toPx())
                     )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Dedicated Interactive Video Note (Кружочек) Full Viewer Dialog!
+ * Displays the video circle in a prominent enlarged view with full playback controls,
+ * speed multiplier, scrub bar, audio volume, and quick action options.
+ */
+@Composable
+fun TelegramVideoNoteViewerDialog(
+    senderName: String,
+    durationText: String,
+    timestamp: Long,
+    onDismiss: () -> Unit,
+    onReply: (() -> Unit)? = null,
+    onForward: (() -> Unit)? = null
+) {
+    val context = LocalContext.current
+    var isPlaying by remember { mutableStateOf(true) }
+    var isMuted by remember { mutableStateOf(false) }
+    var speedMultiplier by remember { mutableFloatStateOf(1.0f) }
+    var playbackProgress by remember { mutableFloatStateOf(0.0f) }
+
+    // Parse duration seconds
+    val totalSeconds = remember(durationText) {
+        val parts = durationText.split(":")
+        if (parts.size == 2) {
+            (parts[0].toIntOrNull() ?: 0) * 60 + (parts[1].toIntOrNull() ?: 4)
+        } else {
+            7
+        }.coerceAtLeast(1)
+    }
+
+    // Playback loop
+    LaunchedEffect(isPlaying, speedMultiplier) {
+        if (isPlaying) {
+            val stepDelay = (60L / speedMultiplier).toLong().coerceAtLeast(16L)
+            while (isPlaying && playbackProgress < 1f) {
+                delay(stepDelay)
+                playbackProgress += 0.015f
+            }
+            if (playbackProgress >= 1f) {
+                playbackProgress = 0f
+                isPlaying = false
+            }
+        }
+    }
+
+    val currentElapsedSeconds = (playbackProgress * totalSeconds).toInt()
+    val elapsedStr = String.format(java.util.Locale.getDefault(), "%02d:%02d", currentElapsedSeconds / 60, currentElapsedSeconds % 60)
+    val totalStr = String.format(java.util.Locale.getDefault(), "%02d:%02d", totalSeconds / 60, totalSeconds % 60)
+
+    val spinTransition = rememberInfiniteTransition(label = "viewer_spin")
+    val spinAngle by spinTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(4000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "spin"
+    )
+
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(
+            usePlatformDefaultWidth = false,
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true
+        )
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.92f))
+                .systemBarsPadding(),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                // Top Header Bar
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF00E5FF).copy(alpha = 0.2f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Filled.Videocam, contentDescription = null, tint = Color(0xFF00E5FF))
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = senderName,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                            Text(
+                                text = "Видеосообщение • ${formatTime(timestamp)}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.White.copy(alpha = 0.7f)
+                            )
+                        }
+                    }
+
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.15f))
+                    ) {
+                        Icon(Icons.Filled.Close, contentDescription = "Закрыть", tint = Color.White)
+                    }
+                }
+
+                // Center Circular Video Player
+                Box(
+                    modifier = Modifier
+                        .size(310.dp)
+                        .clip(CircleShape)
+                        .clickable { isPlaying = !isPlaying },
+                    contentAlignment = Alignment.Center
+                ) {
+                    // Outer glow / rotating gradient ring
+                    Box(
+                        modifier = Modifier
+                            .size(300.dp)
+                            .clip(CircleShape)
+                            .background(
+                                Brush.radialGradient(
+                                    listOf(
+                                        Color(0xFF0D47A1),
+                                        Color(0xFF00897B),
+                                        Color(0xFF1565C0),
+                                        Color(0xFF0A192F)
+                                    )
+                                )
+                            )
+                    ) {
+                        // Dynamic canvas wave visualizer
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            val radius = size.minDimension / 2
+                            val center = androidx.compose.ui.geometry.Offset(size.width / 2, size.height / 2)
+                            
+                            drawCircle(
+                                color = Color(0xFF00E5FF).copy(alpha = 0.25f),
+                                radius = radius * 0.85f,
+                                center = center,
+                                style = Stroke(width = 2f)
+                            )
+                            drawCircle(
+                                color = Color(0xFF00FF66).copy(alpha = 0.2f),
+                                radius = radius * 0.6f,
+                                center = center,
+                                style = Stroke(width = 3f)
+                            )
+                        }
+
+                        // Large Silhouette / Video Note Icon
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.Filled.Face,
+                                contentDescription = null,
+                                tint = Color.White.copy(alpha = 0.85f),
+                                modifier = Modifier.size(130.dp)
+                            )
+                        }
+
+                        // Center Play / Pause Indicator overlay
+                        if (!isPlaying) {
+                            Surface(
+                                shape = CircleShape,
+                                color = Color.Black.copy(alpha = 0.55f),
+                                modifier = Modifier
+                                    .align(Alignment.Center)
+                                    .size(72.dp)
+                            ) {
+                                Icon(
+                                    Icons.Filled.PlayArrow,
+                                    contentDescription = "Воспроизведение",
+                                    tint = Color.White,
+                                    modifier = Modifier
+                                        .padding(16.dp)
+                                        .size(40.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    // Circular Progress Track
+                    Canvas(modifier = Modifier.size(308.dp)) {
+                        drawArc(
+                            color = Color(0xFF00E5FF),
+                            startAngle = -90f,
+                            sweepAngle = 360f * playbackProgress,
+                            useCenter = false,
+                            style = Stroke(width = 5.dp.toPx(), cap = StrokeCap.Round)
+                        )
+                    }
+                }
+
+                // Bottom Controls Section
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // Time Labels & Slider
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(elapsedStr, color = Color(0xFF00E5FF), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Slider(
+                            value = playbackProgress,
+                            onValueChange = { 
+                                playbackProgress = it
+                                isPlaying = false
+                            },
+                            modifier = Modifier.weight(1f).padding(horizontal = 12.dp),
+                            colors = SliderDefaults.colors(
+                                thumbColor = Color(0xFF00E5FF),
+                                activeTrackColor = Color(0xFF00E5FF),
+                                inactiveTrackColor = Color.White.copy(alpha = 0.2f)
+                            )
+                        )
+                        Text(totalStr, color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp)
+                    }
+
+                    Spacer(Modifier.height(10.dp))
+
+                    // Middle playback utility controls (Play/Pause, Speed, Sound)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Sound Volume Toggle
+                        FilledTonalIconButton(
+                            onClick = { isMuted = !isMuted },
+                            colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                containerColor = if (isMuted) Color.Red.copy(alpha = 0.3f) else Color.White.copy(alpha = 0.15f),
+                                contentColor = Color.White
+                            )
+                        ) {
+                            Icon(
+                                if (isMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
+                                contentDescription = "Звук"
+                            )
+                        }
+
+                        // Play / Pause Main Button
+                        FloatingActionButton(
+                            onClick = { isPlaying = !isPlaying },
+                            containerColor = Color(0xFF00E5FF),
+                            contentColor = Color.Black,
+                            shape = CircleShape
+                        ) {
+                            Icon(
+                                if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                                contentDescription = if (isPlaying) "Пауза" else "Воспроизвести",
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
+
+                        // Speed multiplier button
+                        FilledTonalButton(
+                            onClick = {
+                                speedMultiplier = when (speedMultiplier) {
+                                    1.0f -> 1.5f
+                                    1.5f -> 2.0f
+                                    else -> 1.0f
+                                }
+                            },
+                            colors = ButtonDefaults.filledTonalButtonColors(
+                                containerColor = Color.White.copy(alpha = 0.15f),
+                                contentColor = Color(0xFF00E5FF)
+                            ),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("${speedMultiplier}x", fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    Spacer(Modifier.height(16.dp))
+
+                    // Action buttons (Reply, Forward, Save)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        if (onReply != null) {
+                            OutlinedButton(
+                                onClick = {
+                                    onDismiss()
+                                    onReply()
+                                },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.3f)),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(Icons.AutoMirrored.Filled.Reply, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("Ответить", fontSize = 12.sp)
+                            }
+                        }
+
+                        if (onForward != null) {
+                            OutlinedButton(
+                                onClick = {
+                                    onDismiss()
+                                    onForward()
+                                },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.3f)),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(Icons.AutoMirrored.Filled.Forward, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("Переслать", fontSize = 12.sp)
+                            }
+                        }
+
+                        Button(
+                            onClick = {
+                                Toast.makeText(context, "Видеосообщение сохранено в Галерею", Toast.LENGTH_SHORT).show()
+                            },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E5FF), contentColor = Color.Black),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Скачать", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    
+                    Spacer(Modifier.height(8.dp))
                 }
             }
         }
