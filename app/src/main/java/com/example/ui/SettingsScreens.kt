@@ -426,7 +426,7 @@ fun SettingsMenuScreen(viewModel: AppViewModel, navController: NavController) {
                             .clip(CircleShape)
                             .background(Color(0xFF3B82F6))
                             .border(2.dp, MaterialTheme.colorScheme.background, CircleShape)
-                            .clickable { navController.navigate("settings/profile") },
+                            .clickable { navController.navigateSafe("settings/profile") },
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(Icons.Filled.PhotoCamera, contentDescription = "Change photo", tint = Color.White, modifier = Modifier.size(18.dp))
@@ -538,31 +538,31 @@ fun SettingsMenuScreen(viewModel: AppViewModel, navController: NavController) {
                         icon = { Box(modifier = Modifier.size(36.dp).clip(CircleShape).background(Color(0xFF3B82F6)), contentAlignment = Alignment.Center) { Icon(Icons.Filled.Person, null, tint = Color.White, modifier = Modifier.size(20.dp)) } },
                         title = "Аккаунт",
                         subtitle = "Номер, имя пользователя, «О себе»",
-                        onClick = { navController.navigate("settings/profile") }
+                        onClick = { navController.navigateSafe("settings/profile") }
                     )
                     SettingsListItem(
                         icon = { Box(modifier = Modifier.size(36.dp).clip(CircleShape).background(Color(0xFFF59E0B)), contentAlignment = Alignment.Center) { Icon(Icons.Filled.ChatBubble, null, tint = Color.White, modifier = Modifier.size(20.dp)) } },
                         title = "Настройки чатов",
                         subtitle = "Обои, ночной режим, анимации",
-                        onClick = { navController.navigate("settings/themes") }
+                        onClick = { navController.navigateSafe("settings/themes") }
                     )
                     SettingsListItem(
                         icon = { Box(modifier = Modifier.size(36.dp).clip(CircleShape).background(Color(0xFF10B981)), contentAlignment = Alignment.Center) { Icon(Icons.Filled.VpnKey, null, tint = Color.White, modifier = Modifier.size(20.dp)) } },
                         title = "Конфиденциальность",
                         subtitle = "Время захода, устройства, ключи доступа",
-                        onClick = { navController.navigate("settings/security") }
+                        onClick = { navController.navigateSafe("settings/security") }
                     )
                     SettingsListItem(
                         icon = { Box(modifier = Modifier.size(36.dp).clip(CircleShape).background(Color(0xFFEF4444)), contentAlignment = Alignment.Center) { Icon(Icons.Filled.Notifications, null, tint = Color.White, modifier = Modifier.size(20.dp)) } },
                         title = "Уведомления",
                         subtitle = "Звуки, звонки, счётчик сообщений",
-                        onClick = { navController.navigate("settings/general") }
+                        onClick = { navController.navigateSafe("settings/general") }
                     )
                     SettingsListItem(
                         icon = { Box(modifier = Modifier.size(36.dp).clip(CircleShape).background(Color(0xFF3B82F6)), contentAlignment = Alignment.Center) { Icon(Icons.Filled.DataUsage, null, tint = Color.White, modifier = Modifier.size(20.dp)) } },
                         title = "Данные и память",
                         subtitle = "Настройки загрузки медиафайлов",
-                        onClick = { navController.navigate("settings/storage") }
+                        onClick = { navController.navigateSafe("settings/storage") }
                     )
                     SettingsListItem(
                         icon = { Box(modifier = Modifier.size(36.dp).clip(CircleShape).background(Color(0xFF2196F3)), contentAlignment = Alignment.Center) { Icon(Icons.Filled.Folder, null, tint = Color.White, modifier = Modifier.size(20.dp)) } },
@@ -574,25 +574,25 @@ fun SettingsMenuScreen(viewModel: AppViewModel, navController: NavController) {
                         icon = { Box(modifier = Modifier.size(36.dp).clip(CircleShape).background(Color(0xFF00BCD4)), contentAlignment = Alignment.Center) { Icon(Icons.Filled.Devices, null, tint = Color.White, modifier = Modifier.size(20.dp)) } },
                         title = "Устройства",
                         subtitle = "Управление активными сеансами",
-                        onClick = { navController.navigate("settings/devices") }
+                        onClick = { navController.navigateSafe("settings/devices") }
                     )
                     SettingsListItem(
                         icon = { Box(modifier = Modifier.size(36.dp).clip(CircleShape).background(Color(0xFFFF9800)), contentAlignment = Alignment.Center) { Icon(Icons.Filled.BatterySaver, null, tint = Color.White, modifier = Modifier.size(20.dp)) } },
                         title = "Энергосбережение",
                         subtitle = "Экономия энергии при низком заряде",
-                        onClick = { navController.navigate("settings/battery") }
+                        onClick = { navController.navigateSafe("settings/battery") }
                     )
                     SettingsListItem(
                         icon = { Box(modifier = Modifier.size(36.dp).clip(CircleShape).background(Color(0xFF9C27B0)), contentAlignment = Alignment.Center) { Icon(Icons.Filled.Language, null, tint = Color.White, modifier = Modifier.size(20.dp)) } },
                         title = "Язык",
                         subtitle = "Русский",
-                        onClick = { navController.navigate("settings/language") }
+                        onClick = { navController.navigateSafe("settings/language") }
                     )
                     SettingsListItem(
                         icon = { Box(modifier = Modifier.size(36.dp).clip(CircleShape).background(Color(0xFF00E5FF)), contentAlignment = Alignment.Center) { Icon(Icons.Filled.CloudSync, null, tint = Color.Black, modifier = Modifier.size(20.dp)) } },
                         title = "Remote Config",
                         subtitle = "Динамические флаги возможностей и параметры",
-                        onClick = { navController.navigate("settings/remote_config") }
+                        onClick = { navController.navigateSafe("settings/remote_config") }
                     )
                 }
             }
@@ -938,7 +938,7 @@ fun SettingsSecurityScreen(viewModel: AppViewModel, navController: NavController
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { navController.navigate("settings/passcode") }
+                            .clickable { navController.navigateSafe("settings/passcode") }
                             .padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -953,18 +953,18 @@ fun SettingsSecurityScreen(viewModel: AppViewModel, navController: NavController
                             Text("Passcode Lock", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
                             Text(if (isPasscodeEnabled) "On" else "Off", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        Switch(checked = isPasscodeEnabled, onCheckedChange = { navController.navigate("settings/passcode") })
+                        Switch(checked = isPasscodeEnabled, onCheckedChange = { navController.navigateSafe("settings/passcode") })
                     }
-                    SettingsListItem(icon = { Icon(Icons.Filled.VpnKey, null, tint = MaterialTheme.colorScheme.primary) }, title = "Two-Step Verification", subtitle = "Off", onClick = { navController.navigate("settings/two_step") })
-                    SettingsListItem(icon = { Icon(Icons.Filled.Email, null, tint = MaterialTheme.colorScheme.primary) }, title = "Login Email", subtitle = "None", onClick = { navController.navigate("settings/email") })
+                    SettingsListItem(icon = { Icon(Icons.Filled.VpnKey, null, tint = MaterialTheme.colorScheme.primary) }, title = "Two-Step Verification", subtitle = "Off", onClick = { navController.navigateSafe("settings/two_step") })
+                    SettingsListItem(icon = { Icon(Icons.Filled.Email, null, tint = MaterialTheme.colorScheme.primary) }, title = "Login Email", subtitle = "None", onClick = { navController.navigateSafe("settings/email") })
                 }
                 
                 PrivacySectionCard("Privacy") {
-                    SettingsListItem(icon = { Icon(Icons.Filled.Block, null, tint = MaterialTheme.colorScheme.primary) }, title = "Blocked Users", subtitle = "0 users", onClick = { navController.navigate("settings/blocked_users") })
-                    SettingsSimpleItem(title = "Phone Number", value = "Nobody", onClick = { navController.navigate("settings/privacy/Phone Number") })
-                    SettingsSimpleItem(title = "Last Seen & Online", value = "Everybody", onClick = { navController.navigate("settings/privacy/Last Seen") })
-                    SettingsSimpleItem(title = "Profile Photos", value = "Everybody", onClick = { navController.navigate("settings/privacy/Profile Photos") })
-                    SettingsSimpleItem(title = "Calls", value = "Everybody", onClick = { navController.navigate("settings/privacy/Calls") })
+                    SettingsListItem(icon = { Icon(Icons.Filled.Block, null, tint = MaterialTheme.colorScheme.primary) }, title = "Blocked Users", subtitle = "0 users", onClick = { navController.navigateSafe("settings/blocked_users") })
+                    SettingsSimpleItem(title = "Phone Number", value = "Nobody", onClick = { navController.navigateSafe("settings/privacy/Phone Number") })
+                    SettingsSimpleItem(title = "Last Seen & Online", value = "Everybody", onClick = { navController.navigateSafe("settings/privacy/Last Seen") })
+                    SettingsSimpleItem(title = "Profile Photos", value = "Everybody", onClick = { navController.navigateSafe("settings/privacy/Profile Photos") })
+                    SettingsSimpleItem(title = "Calls", value = "Everybody", onClick = { navController.navigateSafe("settings/privacy/Calls") })
                 }
                 
                 PrivacySectionCard("Data and Backup") {

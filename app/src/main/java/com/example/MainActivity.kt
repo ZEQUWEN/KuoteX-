@@ -110,12 +110,7 @@ class MainActivity : ComponentActivity() {
 
         val lastCrash = com.example.utils.CrashReporter.getLastCrash(this)
         if (lastCrash != null) {
-            setContent {
-                Surface(modifier = Modifier.fillMaxSize()) {
-                    Text(text = "PREVIOUS CRASH:\n$lastCrash", modifier = Modifier.padding(16.dp).verticalScroll(rememberScrollState()))
-                }
-            }
-            return
+            Log.e("MainActivity", "Previous crash was detected:\n$lastCrash")
         }
 
         try {

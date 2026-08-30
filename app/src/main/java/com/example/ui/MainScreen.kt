@@ -439,7 +439,7 @@ fun MainAppNavigation(viewModel: AppViewModel) {
                         floatingActionButton = {
                             if (currentRoute == "chat_list") {
                                 FloatingActionButton(
-                                    onClick = { mainNavController.navigate("contacts") },
+                                    onClick = { mainNavController.navigateSafe("contacts") },
                                     containerColor = Color(0xFFDB2777), // bg-pink-600
                                     contentColor = Color.White,
                                     shape = RoundedCornerShape(24.dp)
@@ -452,7 +452,11 @@ fun MainAppNavigation(viewModel: AppViewModel) {
                         NavHost(
                             navController = mainNavController,
                             startDestination = "chat_list",
-                            modifier = Modifier.padding(padding).consumeWindowInsets(padding).imePadding()
+                            modifier = Modifier.padding(padding).consumeWindowInsets(padding).imePadding(),
+                            enterTransition = { fadeIn(animationSpec = tween(180)) },
+                            exitTransition = { fadeOut(animationSpec = tween(180)) },
+                            popEnterTransition = { fadeIn(animationSpec = tween(180)) },
+                            popExitTransition = { fadeOut(animationSpec = tween(180)) }
                         ) {
                             composable("chat_list") { ChatListScreen(viewModel, mainNavController, isStoryExpanded) { isStoryExpanded = it } }
                             composable("archived_chats") { ArchivedChatsScreen(viewModel, mainNavController) }
@@ -567,39 +571,7 @@ fun MainAppNavigation(viewModel: AppViewModel) {
                                     BotDashboardScreen(botId, mainNavController)
                                 }
                             }
-                            composable(
-                                route = "profile/{chatId}",
-                                enterTransition = {
-                                    slideInVertically(
-                                        initialOffsetY = { it },
-                                        animationSpec = spring(
-                                            dampingRatio = Spring.DampingRatioLowBouncy,
-                                            stiffness = Spring.StiffnessMediumLow
-                                        )
-                                    ) + fadeIn(animationSpec = tween(280))
-                                },
-                                exitTransition = {
-                                    slideOutVertically(
-                                        targetOffsetY = { it },
-                                        animationSpec = tween(280, easing = FastOutSlowInEasing)
-                                    ) + fadeOut(animationSpec = tween(220))
-                                },
-                                popEnterTransition = {
-                                    slideInVertically(
-                                        initialOffsetY = { it },
-                                        animationSpec = tween(250, easing = FastOutSlowInEasing)
-                                    ) + fadeIn(animationSpec = tween(250))
-                                },
-                                popExitTransition = {
-                                    slideOutVertically(
-                                        targetOffsetY = { it },
-                                        animationSpec = spring(
-                                            dampingRatio = Spring.DampingRatioNoBouncy,
-                                            stiffness = Spring.StiffnessMediumLow
-                                        )
-                                    ) + fadeOut(animationSpec = tween(220))
-                                }
-                            ) { backStackEntry ->
+                            composable("profile/{chatId}") { backStackEntry ->
                                 val chatId = backStackEntry.arguments?.getString("chatId")
                                 if (chatId != null) {
                                     val chats = viewModel.chats.value
@@ -615,39 +587,7 @@ fun MainAppNavigation(viewModel: AppViewModel) {
                                     }
                                 }
                             }
-                            composable(
-                                route = "group_admin/{chatId}",
-                                enterTransition = {
-                                    slideInVertically(
-                                        initialOffsetY = { it },
-                                        animationSpec = spring(
-                                            dampingRatio = Spring.DampingRatioLowBouncy,
-                                            stiffness = Spring.StiffnessMediumLow
-                                        )
-                                    ) + fadeIn(animationSpec = tween(280))
-                                },
-                                exitTransition = {
-                                    slideOutVertically(
-                                        targetOffsetY = { it },
-                                        animationSpec = tween(280, easing = FastOutSlowInEasing)
-                                    ) + fadeOut(animationSpec = tween(220))
-                                },
-                                popEnterTransition = {
-                                    slideInVertically(
-                                        initialOffsetY = { it },
-                                        animationSpec = tween(250, easing = FastOutSlowInEasing)
-                                    ) + fadeIn(animationSpec = tween(250))
-                                },
-                                popExitTransition = {
-                                    slideOutVertically(
-                                        targetOffsetY = { it },
-                                        animationSpec = spring(
-                                            dampingRatio = Spring.DampingRatioNoBouncy,
-                                            stiffness = Spring.StiffnessMediumLow
-                                        )
-                                    ) + fadeOut(animationSpec = tween(220))
-                                }
-                            ) { backStackEntry -> 
+                            composable("group_admin/{chatId}") { backStackEntry -> 
                                 val chatId = backStackEntry.arguments?.getString("chatId")
                                 if (chatId != null) {
                                     CompositionLocalProvider(LocalAnimatedVisibilityScope provides this@composable) {
@@ -655,39 +595,7 @@ fun MainAppNavigation(viewModel: AppViewModel) {
                                     }
                                 }
                             }
-                            composable(
-                                route = "channel_admin/{chatId}",
-                                enterTransition = {
-                                    slideInVertically(
-                                        initialOffsetY = { it },
-                                        animationSpec = spring(
-                                            dampingRatio = Spring.DampingRatioLowBouncy,
-                                            stiffness = Spring.StiffnessMediumLow
-                                        )
-                                    ) + fadeIn(animationSpec = tween(280))
-                                },
-                                exitTransition = {
-                                    slideOutVertically(
-                                        targetOffsetY = { it },
-                                        animationSpec = tween(280, easing = FastOutSlowInEasing)
-                                    ) + fadeOut(animationSpec = tween(220))
-                                },
-                                popEnterTransition = {
-                                    slideInVertically(
-                                        initialOffsetY = { it },
-                                        animationSpec = tween(250, easing = FastOutSlowInEasing)
-                                    ) + fadeIn(animationSpec = tween(250))
-                                },
-                                popExitTransition = {
-                                    slideOutVertically(
-                                        targetOffsetY = { it },
-                                        animationSpec = spring(
-                                            dampingRatio = Spring.DampingRatioNoBouncy,
-                                            stiffness = Spring.StiffnessMediumLow
-                                        )
-                                    ) + fadeOut(animationSpec = tween(220))
-                                }
-                            ) { backStackEntry -> 
+                            composable("channel_admin/{chatId}") { backStackEntry -> 
                                 val chatId = backStackEntry.arguments?.getString("chatId")
                                 if (chatId != null) {
                                     CompositionLocalProvider(LocalAnimatedVisibilityScope provides this@composable) {
@@ -695,39 +603,7 @@ fun MainAppNavigation(viewModel: AppViewModel) {
                                     }
                                 }
                             }
-                            composable(
-                                route = "channel_appearance/{chatId}",
-                                enterTransition = {
-                                    slideInVertically(
-                                        initialOffsetY = { it },
-                                        animationSpec = spring(
-                                            dampingRatio = Spring.DampingRatioLowBouncy,
-                                            stiffness = Spring.StiffnessMediumLow
-                                        )
-                                    ) + fadeIn(animationSpec = tween(280))
-                                },
-                                exitTransition = {
-                                    slideOutVertically(
-                                        targetOffsetY = { it },
-                                        animationSpec = tween(280, easing = FastOutSlowInEasing)
-                                    ) + fadeOut(animationSpec = tween(220))
-                                },
-                                popEnterTransition = {
-                                    slideInVertically(
-                                        initialOffsetY = { it },
-                                        animationSpec = tween(250, easing = FastOutSlowInEasing)
-                                    ) + fadeIn(animationSpec = tween(250))
-                                },
-                                popExitTransition = {
-                                    slideOutVertically(
-                                        targetOffsetY = { it },
-                                        animationSpec = spring(
-                                            dampingRatio = Spring.DampingRatioNoBouncy,
-                                            stiffness = Spring.StiffnessMediumLow
-                                        )
-                                    ) + fadeOut(animationSpec = tween(220))
-                                }
-                            ) { backStackEntry -> 
+                            composable("channel_appearance/{chatId}") { backStackEntry -> 
                                 val chatId = backStackEntry.arguments?.getString("chatId")
                                 if (chatId != null) {
                                     CompositionLocalProvider(LocalAnimatedVisibilityScope provides this@composable) {
@@ -735,39 +611,7 @@ fun MainAppNavigation(viewModel: AppViewModel) {
                                     }
                                 }
                             }
-                            composable(
-                                route = "channel_boost/{chatId}",
-                                enterTransition = {
-                                    slideInVertically(
-                                        initialOffsetY = { it },
-                                        animationSpec = spring(
-                                            dampingRatio = Spring.DampingRatioLowBouncy,
-                                            stiffness = Spring.StiffnessMediumLow
-                                        )
-                                    ) + fadeIn(animationSpec = tween(280))
-                                },
-                                exitTransition = {
-                                    slideOutVertically(
-                                        targetOffsetY = { it },
-                                        animationSpec = tween(280, easing = FastOutSlowInEasing)
-                                    ) + fadeOut(animationSpec = tween(220))
-                                },
-                                popEnterTransition = {
-                                    slideInVertically(
-                                        initialOffsetY = { it },
-                                        animationSpec = tween(250, easing = FastOutSlowInEasing)
-                                    ) + fadeIn(animationSpec = tween(250))
-                                },
-                                popExitTransition = {
-                                    slideOutVertically(
-                                        targetOffsetY = { it },
-                                        animationSpec = spring(
-                                            dampingRatio = Spring.DampingRatioNoBouncy,
-                                            stiffness = Spring.StiffnessMediumLow
-                                        )
-                                    ) + fadeOut(animationSpec = tween(220))
-                                }
-                            ) { backStackEntry -> 
+                            composable("channel_boost/{chatId}") { backStackEntry -> 
                                 val chatId = backStackEntry.arguments?.getString("chatId")
                                 if (chatId != null) {
                                     CompositionLocalProvider(LocalAnimatedVisibilityScope provides this@composable) {
@@ -2435,7 +2279,7 @@ fun AccountDrawerContent(viewModel: AppViewModel, onCloseDrawer: () -> Unit, nav
                     label = { Text("Profile") },
                     selected = false,
                     onClick = { 
-                        navController.navigate("my_profile")
+                        navController.navigateToTopLevel("my_profile")
                         onCloseDrawer() 
                     }
                 )
@@ -2446,7 +2290,7 @@ fun AccountDrawerContent(viewModel: AppViewModel, onCloseDrawer: () -> Unit, nav
                     label = { Text("Discover Bots") },
                     selected = false,
                     onClick = { 
-                        navController.navigate("discover_bots")
+                        navController.navigateToTopLevel("discover_bots")
                         onCloseDrawer() 
                     }
                 )
@@ -2464,7 +2308,7 @@ fun AccountDrawerContent(viewModel: AppViewModel, onCloseDrawer: () -> Unit, nav
                     icon = { Icon(Icons.Filled.PersonOutline, "Contacts") },
                     label = { Text("Contacts") },
                     selected = false,
-                    onClick = { navController.navigate("contacts"); onCloseDrawer() }
+                    onClick = { navController.navigateToTopLevel("contacts"); onCloseDrawer() }
                 )
             }
             item {
@@ -2472,7 +2316,7 @@ fun AccountDrawerContent(viewModel: AppViewModel, onCloseDrawer: () -> Unit, nav
                     icon = { Icon(Icons.Filled.Call, "Calls") },
                     label = { Text("Calls") },
                     selected = false,
-                    onClick = { navController.navigate("calls"); onCloseDrawer() }
+                    onClick = { navController.navigateToTopLevel("calls"); onCloseDrawer() }
                 )
             }
             item {
@@ -2489,7 +2333,7 @@ fun AccountDrawerContent(viewModel: AppViewModel, onCloseDrawer: () -> Unit, nav
                     label = { Text("Settings") },
                     selected = false,
                     onClick = { 
-                        navController.navigate("settings")
+                        navController.navigateToTopLevel("settings")
                         onCloseDrawer() 
                     }
                 )
@@ -2529,7 +2373,7 @@ fun AccountDrawerContent(viewModel: AppViewModel, onCloseDrawer: () -> Unit, nav
             item {
                 AdminPanelStarsButton(
                     onClick = {
-                        navController.navigate("settings/developer_stats")
+                        navController.navigateToTopLevel("settings/developer_stats")
                         onCloseDrawer()
                     }
                 )

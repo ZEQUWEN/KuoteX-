@@ -15,7 +15,18 @@ object CrashReporter {
         val defaultUncaughtExceptionHandler = Thread.getDefaultUncaughtExceptionHandler()
         
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
-            prefs.edit().putString("last_crash", throwable.stackTraceToString()).commit()
+            val stackTrace = throwable.stackTraceToString()
+            val isNavTransitionException = throwable is IllegalStateException && 
+                (throwable.message?.contains("Cannot transition entry that is not in the back stack") == true ||
+                 stackTrace.contains("prepareForTransition") ||
+                 stackTrace.contains("PredictiveBackHandler"))
+
+            if (isNavTransitionException) {
+                Log.w(TAG, "Suppressed non-fatal navigation predictive back transition error: ${throwable.message}")
+                return@setDefaultUncaughtExceptionHandler
+            }
+
+            prefs.edit().putString("last_crash", stackTrace).commit()
             Log.e(TAG, "Exception caught", throwable)
             defaultUncaughtExceptionHandler?.uncaughtException(thread, throwable)
         }
