@@ -65,12 +65,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.lazy.LazyRow
+import org.koin.androidx.compose.koinViewModel
+import com.example.ui.navigation.AuthNavGraph
 
 val LocalActiveAccount = compositionLocalOf<UserAccount?> { null }
 
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.animation.ExperimentalSharedTransitionApi::class)
 @Composable
-fun MainAppNavigation(viewModel: AppViewModel) {
+fun MainAppNavigation(viewModel: AppViewModel = koinViewModel()) {
     var showSplash by remember { mutableStateOf(true) }
     
     if (showSplash) {
@@ -186,67 +188,16 @@ fun MainAppNavigation(viewModel: AppViewModel) {
 
 
             if (!isAuthComplete) {
-                val rootNavController = rememberNavController()
-                val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
-                androidx.compose.runtime.DisposableEffect(rootNavController) {
-                    val listener = androidx.navigation.NavController.OnDestinationChangedListener { _, _, _ ->
-                        focusManager.clearFocus()
+                AuthNavGraph(
+                    accounts = accounts,
+                    requires2FA = requires2FA,
+                    isAddingAccount = isAddingAccount,
+                    appViewModel = viewModel,
+                    onAuthSuccess = { accountId ->
+                        viewModel.clearAddingAccount()
+                        viewModel.switchAccount(accountId)
                     }
-                    rootNavController.addOnDestinationChangedListener(listener)
-                    onDispose {
-                        rootNavController.removeOnDestinationChangedListener(listener)
-                    }
-                }
-                NavHost(
-                    navController = rootNavController,
-                    startDestination = if (requires2FA != null) "2fa" else "auth",
-                    modifier = Modifier.fillMaxSize().systemBarsPadding().imePadding()
-                ) {
-                    composable("auth") {
-                        LoginScreen(
-                            accounts = accounts,
-                            viewModel = viewModel,
-                            onNavigateToRegister = { rootNavController.navigate("register") },
-                            forceManualLogin = isAddingAccount,
-                            onLoginSuccess = { userIdentifier ->
-                                viewModel.clearAddingAccount() 
-                                val accountId = accounts.find { 
-                                    it.id == userIdentifier ||
-                                    it.username.equals(userIdentifier, ignoreCase = true) || 
-                                    it.username.equals("@$userIdentifier", ignoreCase = true) ||
-                                    it.displayName.equals(userIdentifier, ignoreCase = true) ||
-                                    it.phoneNumber == userIdentifier
-                                }?.id ?: userIdentifier
-                                viewModel.switchAccount(accountId)
-                            }
-                        )
-                    }
-                    composable("register") {
-                        RegistrationScreen(
-                            accounts = accounts,
-                            viewModel = viewModel,
-                            onNavigateToLogin = { rootNavController.navigate("auth") },
-                            onRegisterSuccess = { userIdentifier ->
-                                viewModel.clearAddingAccount() 
-                                val accountId = accounts.find { 
-                                    it.id == userIdentifier ||
-                                    it.username.equals(userIdentifier, ignoreCase = true) || 
-                                    it.username.equals("@$userIdentifier", ignoreCase = true) ||
-                                    it.displayName.equals(userIdentifier, ignoreCase = true) ||
-                                    it.phoneNumber == userIdentifier
-                                }?.id ?: userIdentifier
-                                viewModel.switchAccount(accountId)
-                            },
-                            checkPhoneExists = { phone -> viewModel.checkPhoneExists(phone) }
-                        )
-                    }
-                    composable("2fa") {
-                        TwoFactorAuthScreen(
-                            onVerify = { viewModel.verify2FA(it) },
-                            onCancel = { viewModel.cancel2FA() }
-                        )
-                    }
-                }
+                )
             } else {
                 val mainNavController = rememberNavController()
                 val focusManager = androidx.compose.ui.platform.LocalFocusManager.current

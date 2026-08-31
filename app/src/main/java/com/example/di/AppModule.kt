@@ -5,12 +5,19 @@ import android.content.SharedPreferences
 import com.example.crypto.CryptoSession
 import com.example.crypto.SignalProtocolManager
 import com.example.data.AppDatabase
+import com.example.data.dataStore
 import com.example.data.MessengerRepository
 import com.example.data.NetworkModule
 import com.example.data.SecureDatabaseHelper
 import com.example.data.UserPreferencesRepository
 import com.example.data.WebSocketManager
-import com.example.data.dataStore
+import com.example.data.repository.AuthRepository
+import com.example.data.repository.AuthRepositoryImpl
+import com.example.data.repository.ChatDataRepository
+import com.example.data.repository.ChatDataRepositoryImpl
+import com.example.data.repository.UserDataRepository
+import com.example.data.repository.UserDataRepositoryImpl
+import com.example.ui.auth.AuthViewModel
 import com.example.ui.AccountViewModel
 import com.example.ui.AppViewModel
 import com.example.ui.botapi.BotFatherViewModel
@@ -87,6 +94,27 @@ val databaseModule = module {
 }
 
 /**
+ * Data Repository Layer abstracting Firestore and Room operations.
+ */
+val repositoryModule = module {
+    single<AuthRepository> {
+        AuthRepositoryImpl(userDao = get())
+    }
+    single<UserDataRepository> {
+        UserDataRepositoryImpl(userDao = get(), contactDao = get())
+    }
+    single<ChatDataRepository> {
+        ChatDataRepositoryImpl(
+            chatDao = get(),
+            messageDao = get(),
+            draftDao = get(),
+            contactDao = get(),
+            groupMemberDao = get()
+        )
+    }
+}
+
+/**
  * Ephemeral Session Objects (Factory-scoped to prevent memory leaks on resource-constrained devices).
  * Instances are created fresh per request and disposed of immediately upon call/encryption termination.
  */
@@ -103,6 +131,14 @@ val sessionModule = module {
     factory<WebRtcCallSession> { (chatId: String, isVideo: Boolean) ->
         WebRtcCallSession(chatId = chatId, isVideo = isVideo)
     }
+
+    // Ephemeral Factory scope for Authentication process
+    factory<AuthViewModel> {
+        AuthViewModel(
+            authRepository = get(),
+            userDataRepository = get()
+        )
+    }
 }
 
 /**
@@ -118,6 +154,12 @@ val viewModelModule = module {
         )
     }
     viewModel {
+        AuthViewModel(
+            authRepository = get(),
+            userDataRepository = get()
+        )
+    }
+    viewModel {
         BotFatherViewModel()
     }
     viewModel {
@@ -129,7 +171,7 @@ val viewModelModule = module {
  * Main application Koin module aggregating app services and session factories.
  */
 val appModule = module {
-    includes(appServiceModule, databaseModule, sessionModule, viewModelModule)
+    includes(appServiceModule, databaseModule, repositoryModule, sessionModule, viewModelModule)
 }
 
 val allKoinModules = listOf(appModule)

@@ -44,10 +44,11 @@ import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import com.example.ui.ConnectionStatus
-
-
+import org.koin.android.ext.android.inject
 
 class MainActivity : ComponentActivity() {
+    private val viewModel: AppViewModel by inject()
+
     // Ask for POST_NOTIFICATIONS permission
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -152,18 +153,6 @@ class MainActivity : ComponentActivity() {
                 com.example.ui.PresenceManager.updatePresence(applicationContext, "current_user_id", true)
             } catch(e: Exception) { e.printStackTrace() }
             
-            val factory = object : ViewModelProvider.Factory {
-                override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                    if (modelClass.isAssignableFrom(AppViewModel::class.java)) {
-                        @Suppress("UNCHECKED_CAST")
-                        return AppViewModel(repository, userPrefs) as T
-                    }
-                    throw IllegalArgumentException("Unknown ViewModel class")
-                }
-            }
-
-            
-            val viewModel: AppViewModel by viewModels { factory }
             viewModel.checkAutoTheme()
 
             // Initialize Notification Channels
@@ -284,16 +273,14 @@ val isDarkThemeEnabled by viewModel.isDarkThemeEnabled.collectAsState()
         setIntent(intent)
         intent.getStringExtra("OPEN_CHAT_ID")?.let { chatId ->
             try {
-                val vm: AppViewModel by viewModels()
-                vm.setPendingOpenChatId(chatId)
+                viewModel.setPendingOpenChatId(chatId)
             } catch (e: Exception) {
                 // Handled safely
             }
         }
         intent.getStringExtra("OPEN_STREAM_HOST_ID")?.let { hostId ->
             try {
-                val vm: AppViewModel by viewModels()
-                vm.setPendingOpenStreamHostId(hostId)
+                viewModel.setPendingOpenStreamHostId(hostId)
             } catch (e: Exception) {
                 // Handled safely
             }

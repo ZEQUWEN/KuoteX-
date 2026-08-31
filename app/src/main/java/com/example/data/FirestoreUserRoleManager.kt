@@ -523,6 +523,77 @@ object FirestoreUserRoleManager {
         }
     }
 
+    fun syncLocalAccounts(accounts: List<UserAccount>) {
+        if (accounts.isEmpty()) return
+        _users.update { current ->
+            val updated = current.toMutableList()
+            for (acc in accounts) {
+                val index = updated.indexOfFirst { it.id == acc.id }
+                val fallbackEmail = "${acc.username.removePrefix("@").lowercase()}@neon.im"
+                val role = RegisteredUserRole(
+                    id = acc.id,
+                    username = acc.username,
+                    displayName = acc.displayName,
+                    email = fallbackEmail,
+                    phoneNumber = acc.phoneNumber,
+                    profilePicUrl = acc.profilePicUrl,
+                    isAdmin = acc.id == "123456789" || acc.phoneNumber.contains("79226692682"),
+                    isModerator = false,
+                    customStatus = acc.customStatus.ifBlank { "Registered User" },
+                    isOnline = true
+                )
+                if (index >= 0) {
+                    updated[index] = updated[index].copy(
+                        username = acc.username,
+                        displayName = acc.displayName,
+                        phoneNumber = acc.phoneNumber,
+                        profilePicUrl = acc.profilePicUrl
+                    )
+                } else {
+                    updated.add(role)
+                }
+            }
+            updated
+        }
+        saveToPrefs(_users.value)
+    }
+
+    fun setAdminRole(userId: String, isAdmin: Boolean, updatedBy: String = "Dev Admin (+79226692682)") {
+        val target = _users.value.find { it.id == userId } ?: return
+        if (target.isAdmin == isAdmin) return
+        _users.update { list ->
+            list.map { user ->
+                if (user.id == userId) {
+                    user.copy(
+                        isAdmin = isAdmin,
+                        isSyncedToFirestore = false,
+                        lastRoleUpdatedTimestamp = System.currentTimeMillis()
+                    )
+                } else user
+            }
+        }
+        saveToPrefs(_users.value)
+        syncUserRoleToFirestore(userId, isAdmin, target.isModerator, updatedBy)
+    }
+
+    fun setModeratorRole(userId: String, isModerator: Boolean, updatedBy: String = "Dev Admin (+79226692682)") {
+        val target = _users.value.find { it.id == userId } ?: return
+        if (target.isModerator == isModerator) return
+        _users.update { list ->
+            list.map { user ->
+                if (user.id == userId) {
+                    user.copy(
+                        isModerator = isModerator,
+                        isSyncedToFirestore = false,
+                        lastRoleUpdatedTimestamp = System.currentTimeMillis()
+                    )
+                } else user
+            }
+        }
+        saveToPrefs(_users.value)
+        syncUserRoleToFirestore(userId, target.isAdmin, isModerator, updatedBy)
+    }
+
     /**
      * Toggles 'Admin' role permission for a registered user and pushes to Firestore.
      */
