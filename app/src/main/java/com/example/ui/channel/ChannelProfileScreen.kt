@@ -3,6 +3,7 @@ package com.example.ui.channel
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -17,6 +18,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
@@ -39,6 +41,8 @@ import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.ui.AppViewModel
 import com.example.ui.components.TelegramEmojiPickerBottomSheet
+import com.example.ui.navigateSafe
+import com.example.ui.popBackStackSafe
 import com.example.utils.QrCodeGenerator
 
 /**
@@ -78,6 +82,9 @@ fun ChannelProfileScreen(
     var showQrDialog by remember { mutableStateOf(false) }
     var showEmojiPicker by remember { mutableStateOf(false) }
     var showOptionsMenu by remember { mutableStateOf(false) }
+    var showAutoDeleteWheel by remember { mutableStateOf(false) }
+    var showStoriesArchive by remember { mutableStateOf(false) }
+    var showSendGiftDialog by remember { mutableStateOf(false) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
     var showLeaveConfirmDialog by remember { mutableStateOf(false) }
     var deleteForAllSubscribers by remember { mutableStateOf(true) }
@@ -235,7 +242,7 @@ fun ChannelProfileScreen(
                         showDeleteConfirmDialog = false
                         viewModel.deleteChat(chatId)
                         Toast.makeText(context, "Канал «${chat?.title ?: "Канал"}» удален", Toast.LENGTH_SHORT).show()
-                        navController.navigate("chat_list") {
+                        navController.navigateSafe("chat_list") {
                             popUpTo("chat_list") { inclusive = true }
                         }
                     },
@@ -302,7 +309,7 @@ fun ChannelProfileScreen(
                         showLeaveConfirmDialog = false
                         viewModel.deleteChat(chatId)
                         Toast.makeText(context, "Вы покинули канал «${chat?.title ?: "Канал"}»", Toast.LENGTH_SHORT).show()
-                        navController.navigate("chat_list") {
+                        navController.navigateSafe("chat_list") {
                             popUpTo("chat_list") { inclusive = true }
                         }
                     },
@@ -322,81 +329,152 @@ fun ChannelProfileScreen(
         )
     }
 
+    // --- AUTO-DELETE WHEEL BOTTOM SHEET ---
+    if (showAutoDeleteWheel) {
+        TelegramAutoDeleteWheelBottomSheet(
+            currentValue = customization.autoDeletePeriod ?: "Нет",
+            onDismissRequest = { showAutoDeleteWheel = false },
+            onApply = { selectedPeriod ->
+                ChannelCustomizationManager.updateAutoDelete(chatId, selectedPeriod)
+                if (selectedPeriod != null && selectedPeriod != "Нет") {
+                    Toast.makeText(
+                        context,
+                        "Новые сообщения в чате будут автоматически удаляться через $selectedPeriod",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                } else {
+                    Toast.makeText(
+                        context,
+                        "Автоудаление выключено.",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+        )
+    }
+
+    // --- STORIES ARCHIVE DIALOG ---
+    if (showStoriesArchive) {
+        TelegramStoriesArchiveDialog(
+            onDismissRequest = { showStoriesArchive = false },
+            onAddNewStory = {
+                Toast.makeText(context, "Открытие камеры для публикации истории...", Toast.LENGTH_SHORT).show()
+            }
+        )
+    }
+
+    // --- SEND GIFT DIALOG ---
+    if (showSendGiftDialog) {
+        TelegramSendGiftDialog(
+            channelTitle = chat?.title ?: "Канал",
+            onDismissRequest = { showSendGiftDialog = false },
+            onGiftSent = { giftName, stars ->
+                Toast.makeText(
+                    context,
+                    "Вы успешно отправили подарок «$giftName» за $stars ⭐!",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Назад", tint = Color.White)
+                    IconButton(onClick = { navController.popBackStackSafe() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад", tint = Color.White)
                     }
                 },
                 actions = {
+                    if (isAdmin) {
+                        IconButton(onClick = { navController.navigateSafe("channel_admin/$chatId") }) {
+                            Icon(Icons.Filled.Edit, contentDescription = "Изменить", tint = Color.White)
+                        }
+                    }
+
                     Box {
                         IconButton(onClick = { showOptionsMenu = true }) {
                             Icon(Icons.Filled.MoreVert, contentDescription = "Опции", tint = Color.White)
                         }
-                        DropdownMenu(
+
+                        ChannelProfileDropdownMenu(
                             expanded = showOptionsMenu,
                             onDismissRequest = { showOptionsMenu = false },
-                            containerColor = Color(0xFF1E2433)
-                        ) {
-                            if (isAdmin) {
-                                DropdownMenuItem(
-                                    text = { Text("Изменить", color = Color.White) },
-                                    leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null, tint = Color.White.copy(alpha = 0.7f)) },
-                                    onClick = {
-                                        showOptionsMenu = false
-                                        navController.navigate("channel_admin/$chatId")
+                            isAdmin = isAdmin,
+                            isChannel = isChannel,
+                            channelTitle = chat?.title ?: "Канал",
+                            currentAutoDeletePeriod = customization.autoDeletePeriod,
+                            onAutoDeleteSelected = { period ->
+                                ChannelCustomizationManager.updateAutoDelete(chatId, period)
+                                if (period != null) {
+                                    Toast.makeText(
+                                        context,
+                                        "Новые сообщения в чате будут автоматически удаляться через $period",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                } else {
+                                    Toast.makeText(
+                                        context,
+                                        "Автоудаление выключено.",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            },
+                            onOpenAutoDeleteCustomWheel = {
+                                showAutoDeleteWheel = true
+                            },
+                            onStartLiveStream = {
+                                navController.navigateSafe("broadcast")
+                            },
+                            onOpenStats = {
+                                navController.navigateSafe("channel_boost/$chatId")
+                            },
+                            onOpenStoriesArchive = {
+                                showStoriesArchive = true
+                            },
+                            onShare = {
+                                try {
+                                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                        type = "text/plain"
+                                        putExtra(Intent.EXTRA_SUBJECT, chat?.title ?: "Канал")
+                                        putExtra(
+                                            Intent.EXTRA_TEXT,
+                                            "Присоединяйтесь к каналу «${chat?.title ?: "Канал"}»: https://${customization.inviteLink}"
+                                        )
                                     }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Оформление", color = Color.White) },
-                                    leadingIcon = { Icon(Icons.Filled.Palette, contentDescription = null, tint = Color.White.copy(alpha = 0.7f)) },
-                                    onClick = {
-                                        showOptionsMenu = false
-                                        navController.navigate("channel_appearance/$chatId")
-                                    }
-                                )
-                                HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
-                            }
-                            DropdownMenuItem(
-                                text = { Text("Поделиться", color = Color.White) },
-                                leadingIcon = { Icon(Icons.Filled.Share, contentDescription = null, tint = Color.White.copy(alpha = 0.7f)) },
-                                onClick = {
-                                    showOptionsMenu = false
+                                    context.startActivity(Intent.createChooser(shareIntent, "Поделиться каналом"))
+                                } catch (e: Exception) {
                                     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                                     clipboard.setPrimaryClip(ClipData.newPlainText("Channel Link", "https://${customization.inviteLink}"))
                                     Toast.makeText(context, "Ссылка на канал скопирована!", Toast.LENGTH_SHORT).show()
                                 }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Очистить историю", color = Color.White) },
-                                leadingIcon = { Icon(Icons.Filled.CleaningServices, contentDescription = null, tint = Color.White.copy(alpha = 0.7f)) },
-                                onClick = {
-                                    showOptionsMenu = false
-                                    viewModel.clearHistory(chatId)
-                                    Toast.makeText(context, "История очищена", Toast.LENGTH_SHORT).show()
+                            },
+                            onSendGift = {
+                                showSendGiftDialog = true
+                            },
+                            onViewDiscussion = {
+                                if (customization.discussionChatId != null) {
+                                    navController.navigateSafe("chat/${customization.discussionChatId}")
+                                } else {
+                                    Toast.makeText(context, "Обсуждение: ${customization.discussionChatTitle}", Toast.LENGTH_SHORT).show()
                                 }
-                            )
-                            HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
-                            DropdownMenuItem(
-                                text = { Text("Покинуть канал", color = Color(0xFFFF5252)) },
-                                leadingIcon = { Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = null, tint = Color(0xFFFF5252)) },
-                                onClick = {
-                                    showOptionsMenu = false
-                                    showLeaveConfirmDialog = true
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Удалить канал", color = Color(0xFFFF5252)) },
-                                leadingIcon = { Icon(Icons.Filled.DeleteForever, contentDescription = null, tint = Color(0xFFFF5252)) },
-                                onClick = {
-                                    showOptionsMenu = false
-                                    showDeleteConfirmDialog = true
-                                }
-                            )
-                        }
+                            },
+                            onCreateShortcut = {
+                                Toast.makeText(
+                                    context,
+                                    "Ярлык канала «${chat?.title ?: "Канал"}» добавлен на главный экран",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            },
+                            onLeaveChannel = {
+                                showLeaveConfirmDialog = true
+                            },
+                            onDeleteChannel = {
+                                showDeleteConfirmDialog = true
+                            }
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF0F141C))
@@ -492,7 +570,7 @@ fun ChannelProfileScreen(
                             icon = Icons.Filled.Podcasts,
                             title = "Live Stream",
                             onClick = {
-                                navController.navigate("broadcast/$chatId")
+                                navController.navigateSafe("broadcast/$chatId")
                             }
                         )
 
@@ -509,7 +587,11 @@ fun ChannelProfileScreen(
                             icon = Icons.Filled.ChatBubbleOutline,
                             title = "Обсуждение",
                             onClick = {
-                                Toast.makeText(context, "Переход в группу обсуждения: ${customization.discussionChatTitle}", Toast.LENGTH_SHORT).show()
+                                if (customization.discussionChatId != null) {
+                                    navController.navigateSafe("chat/${customization.discussionChatId}")
+                                } else {
+                                    Toast.makeText(context, "Переход в группу обсуждения: ${customization.discussionChatTitle}", Toast.LENGTH_SHORT).show()
+                                }
                             }
                         )
 
@@ -517,7 +599,7 @@ fun ChannelProfileScreen(
                             icon = Icons.Filled.AddCircleOutline,
                             title = "Новая история",
                             onClick = {
-                                Toast.makeText(context, "Создание новой истории для канала ✨", Toast.LENGTH_SHORT).show()
+                                showStoriesArchive = true
                             }
                         )
                     }
@@ -623,7 +705,7 @@ fun ChannelProfileScreen(
                             title = "Подписчики",
                             badgeValue = "${customization.subscriberCount}",
                             onClick = {
-                                navController.navigate("channel_admin/$chatId")
+                                navController.navigateSafe("channel_admin/$chatId")
                             }
                         )
 
@@ -638,7 +720,7 @@ fun ChannelProfileScreen(
                             title = "Администраторы",
                             badgeValue = "1",
                             onClick = {
-                                navController.navigate("channel_admin/$chatId")
+                                navController.navigateSafe("channel_admin/$chatId")
                             }
                         )
 
@@ -653,7 +735,7 @@ fun ChannelProfileScreen(
                             title = "Настройки канала",
                             badgeValue = "",
                             onClick = {
-                                navController.navigate("channel_admin/$chatId")
+                                navController.navigateSafe("channel_admin/$chatId")
                             }
                         )
                     }

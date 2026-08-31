@@ -205,6 +205,19 @@ object ChannelCustomizationManager {
         )
     }
 
+    fun updateAutoDelete(chatId: String, period: String?) {
+        customizations.update { map ->
+            val current = map[chatId] ?: ChannelCustomization(chatId = chatId)
+            val updated = current.copy(autoDeletePeriod = period)
+            map + (chatId to updated)
+        }
+        logAdminAction(
+            chatId = chatId,
+            title = if (period != null) "Включено автоудаление" else "Отключено автоудаление",
+            details = if (period != null) "Период: $period" else "Автоудаление сообщений выключено"
+        )
+    }
+
     fun toggleBoost(chatId: String): Boolean {
         var newVotedState = false
         customizations.update { map ->

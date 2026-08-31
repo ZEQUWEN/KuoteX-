@@ -234,7 +234,8 @@ data class ChannelCustomization(
     val autoGreetingEnabled: Boolean = false,
     val autoGreetingText: String = "Новое приветствие\nПриветствие будет автоматически отправляться новым участникам.",
     val restrictSavingContent: Boolean = false,
-    val isPublic: Boolean = true
+    val isPublic: Boolean = true,
+    val autoDeletePeriod: String? = null
 ) {
     val wallpaperId: String get() = chatWallpaperId
 }
