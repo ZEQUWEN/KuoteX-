@@ -11,6 +11,11 @@ import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
 import com.google.firebase.initialize
 import com.example.analytics.FirebaseAnalyticsHelper
+import com.example.di.allKoinModules
+import org.koin.android.ext.koin.androidContext
+import org.koin.android.ext.koin.androidLogger
+import org.koin.core.context.startKoin
+import org.koin.core.logger.Level
 import org.json.JSONObject
 import java.io.InputStream
 
@@ -18,6 +23,15 @@ class MyApplication : Application(), ImageLoaderFactory {
     override fun onCreate() {
         super.onCreate()
         initFirebase()
+        try {
+            startKoin {
+                androidLogger(Level.ERROR)
+                androidContext(this@MyApplication)
+                modules(allKoinModules)
+            }
+        } catch (e: Exception) {
+            Log.w("MyApplication", "Koin start: ${e.message}")
+        }
         try {
             com.example.di.Injector.init(com.example.di.DefaultAppContainer(this))
         } catch (e: Exception) {
