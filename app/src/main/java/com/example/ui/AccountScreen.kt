@@ -32,6 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import org.koin.androidx.compose.koinViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 
 import coil.compose.AsyncImage
@@ -63,7 +64,7 @@ fun Modifier.shimmerEffect(): Modifier = composed {
 fun AccountScreen(
     onBack: () -> Unit,
     appViewModel: com.example.ui.AppViewModel,
-    viewModel: AccountViewModel = viewModel()
+    viewModel: AccountViewModel = koinViewModel()
 ) {
     LaunchedEffect(appViewModel.repository) {
         viewModel.setRepository(appViewModel.repository)

@@ -67,6 +67,8 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.lazy.LazyRow
 import org.koin.androidx.compose.koinViewModel
 import com.example.ui.navigation.AuthNavGraph
+import com.example.ui.navigation.MainAppNavGraph
+import com.example.ui.navigation.AppDestinations
 
 val LocalActiveAccount = compositionLocalOf<UserAccount?> { null }
 
@@ -400,177 +402,13 @@ fun MainAppNavigation(viewModel: AppViewModel = koinViewModel()) {
                             }
                         }
                     ) { padding ->
-                        NavHost(
+                        MainAppNavGraph(
                             navController = mainNavController,
-                            startDestination = "chat_list",
                             modifier = Modifier.padding(padding).consumeWindowInsets(padding).imePadding(),
-                            enterTransition = { fadeIn(animationSpec = tween(180)) },
-                            exitTransition = { fadeOut(animationSpec = tween(180)) },
-                            popEnterTransition = { fadeIn(animationSpec = tween(180)) },
-                            popExitTransition = { fadeOut(animationSpec = tween(180)) }
-                        ) {
-                            composable("chat_list") { ChatListScreen(viewModel, mainNavController, isStoryExpanded) { isStoryExpanded = it } }
-                            composable("archived_chats") { ArchivedChatsScreen(viewModel, mainNavController) }
-                            composable("archive_settings") { ArchiveSettingsScreen(mainNavController) }
-                            composable("discover_bots") { DiscoverBotsScreen(viewModel, mainNavController) }
-                            composable("contacts") { ContactsScreen(viewModel, mainNavController) }
-                            composable("calls") { CallsListScreen(mainNavController) }
-                            composable("settings") { SettingsMenuScreen(viewModel, mainNavController) }
-                            composable("database_diagnostics") { DatabaseDiagnosticScreen() }
-                            composable("settings/developer_stats") { DeveloperStatsScreen(viewModel, mainNavController) }
-                            composable("settings/developer_debug") { DeveloperAnalyticsDebugScreen(viewModel, mainNavController) }
-                            composable("settings/remote_config") { RemoteConfigScreen(viewModel, mainNavController) }
-                            composable("settings/accounts") { SettingsAccountsScreen(viewModel, mainNavController) }
-                            composable("settings/profile?highlightId={highlightId}", arguments = listOf(navArgument("highlightId") { nullable = true; defaultValue = null })) { backStackEntry ->
-                                val highlightId = backStackEntry.arguments?.getString("highlightId")
-                                androidx.compose.runtime.LaunchedEffect(highlightId) { viewModel.setHighlightEvent(highlightId) }
-                                AccountScreen(onBack = { mainNavController.popBackStack() }, appViewModel = viewModel)
-                            }
-                            composable("settings/general?highlightId={highlightId}", arguments = listOf(navArgument("highlightId") { nullable = true; defaultValue = null })) { backStackEntry ->
-                                val highlightId = backStackEntry.arguments?.getString("highlightId")
-                                androidx.compose.runtime.LaunchedEffect(highlightId) { viewModel.setHighlightEvent(highlightId) }
-                                SettingsGeneralScreen(viewModel, mainNavController)
-                            }
-                            composable("settings/storage?highlightId={highlightId}", arguments = listOf(navArgument("highlightId") { nullable = true; defaultValue = null })) { backStackEntry ->
-                                val highlightId = backStackEntry.arguments?.getString("highlightId")
-                                androidx.compose.runtime.LaunchedEffect(highlightId) { viewModel.setHighlightEvent(highlightId) }
-                                SettingsStorageScreen(viewModel, mainNavController)
-                            }
-                            composable("settings/storage/memory") {
-                                StorageUsageScreen(viewModel, mainNavController)
-                            }
-                            composable("settings/storage/network") {
-                                NetworkUsageScreen(viewModel, mainNavController)
-                            }
-
-                            composable("settings/themes?highlightId={highlightId}", arguments = listOf(navArgument("highlightId") { nullable = true; defaultValue = null })) { backStackEntry ->
-                                val highlightId = backStackEntry.arguments?.getString("highlightId")
-                                androidx.compose.runtime.LaunchedEffect(highlightId) { viewModel.setHighlightEvent(highlightId) }
-                                SettingsThemesScreen(viewModel, mainNavController)
-                            }
-                            composable("settings/security?highlightId={highlightId}", arguments = listOf(navArgument("highlightId") { nullable = true; defaultValue = null })) { backStackEntry ->
-                                val highlightId = backStackEntry.arguments?.getString("highlightId")
-                                androidx.compose.runtime.LaunchedEffect(highlightId) { viewModel.setHighlightEvent(highlightId) }
-                                SettingsSecurityScreen(viewModel, mainNavController)
-                            }
-                            composable("settings/two_step") { TwoStepVerificationScreen(mainNavController) }
-                            composable("settings/passcode") { PasscodeLockScreen(viewModel, mainNavController) }
-                            composable("settings/email") { LoginEmailScreen(viewModel, mainNavController) }
-                            composable("settings/verify_email") { VerifyEmailScreen(viewModel, mainNavController) }
-                            composable("settings/devices?highlightId={highlightId}", arguments = listOf(navArgument("highlightId") { nullable = true; defaultValue = null })) { backStackEntry ->
-                                val highlightId = backStackEntry.arguments?.getString("highlightId")
-                                androidx.compose.runtime.LaunchedEffect(highlightId) { viewModel.setHighlightEvent(highlightId) }
-                                DevicesScreen(mainNavController)
-                            }
-                            composable("settings/blocked_users") { BlockedUsersScreen(viewModel, mainNavController) }
-                            composable("settings/language?highlightId={highlightId}", arguments = listOf(navArgument("highlightId") { nullable = true; defaultValue = null })) { backStackEntry ->
-                                val highlightId = backStackEntry.arguments?.getString("highlightId")
-                                androidx.compose.runtime.LaunchedEffect(highlightId) { viewModel.setHighlightEvent(highlightId) }
-                                SettingsLanguageScreen(viewModel, mainNavController)
-                            }
-                            composable("settings/battery?highlightId={highlightId}", arguments = listOf(navArgument("highlightId") { nullable = true; defaultValue = null })) { backStackEntry ->
-                                val highlightId = backStackEntry.arguments?.getString("highlightId")
-                                androidx.compose.runtime.LaunchedEffect(highlightId) { viewModel.setHighlightEvent(highlightId) }
-                                SettingsBatterySaverScreen(viewModel, mainNavController)
-                            }
-                            composable("settings/privacy/{title}") { backStackEntry -> 
-                                val title = backStackEntry.arguments?.getString("title") ?: ""
-                                PrivacySettingScreen(mainNavController, title)
-                            }
-                            composable("chat/{chatId}") { backStackEntry -> 
-                                val chatId = backStackEntry.arguments?.getString("chatId")
-                                if (chatId != null) {
-                                    CompositionLocalProvider(LocalAnimatedVisibilityScope provides this@composable) {
-                                        ChatScreen(viewModel, chatId, mainNavController)
-                                    }
-                                }
-                            }
-                            composable(
-                                route = "call/{chatId}?isVideo={isVideo}",
-                                arguments = listOf(
-                                    androidx.navigation.navArgument("isVideo") {
-                                        type = androidx.navigation.NavType.BoolType
-                                        defaultValue = false
-                                    }
-                                )
-                            ) { backStackEntry ->
-                                val chatId = backStackEntry.arguments?.getString("chatId")
-                                val isVideo = backStackEntry.arguments?.getBoolean("isVideo") ?: false
-                                if (chatId != null) {
-                                    CallScreen(viewModel, chatId, isVideo, mainNavController)
-                                }
-                            }
-                            composable("sandbox/{botId}") { backStackEntry ->
-                                val botId = backStackEntry.arguments?.getString("botId")
-                                if (botId != null) {
-                                    SandboxScreen(viewModel, botId, mainNavController)
-                                }
-                            }
-                            composable("my_profile") {
-                                MyProfileScreen(viewModel, mainNavController)
-                            }
-                            composable("broadcast") {
-                                BroadcastScreen(viewModel, mainNavController)
-                            }
-                            composable("broadcast/{streamId}") { backStackEntry ->
-                                val streamId = backStackEntry.arguments?.getString("streamId")
-                                BroadcastScreen(viewModel, mainNavController, streamId)
-                            }
-                            composable("dashboard/{botId}") { backStackEntry ->
-                                val botId = backStackEntry.arguments?.getString("botId")
-                                if (botId != null) {
-                                    BotDashboardScreen(botId, mainNavController)
-                                }
-                            }
-                            composable("profile/{chatId}") { backStackEntry ->
-                                val chatId = backStackEntry.arguments?.getString("chatId")
-                                if (chatId != null) {
-                                    val chats = viewModel.chats.value
-                                    val chat = chats.find { it.id == chatId }
-                                    CompositionLocalProvider(LocalAnimatedVisibilityScope provides this@composable) {
-                                        if (chat?.isBot == true) {
-                                            BotProfileScreen(viewModel, chatId, mainNavController)
-                                        } else if (chat?.isChannel == true || chat?.isGroup == true) {
-                                            ChannelProfileScreen(viewModel, chatId, mainNavController)
-                                        } else {
-                                            ProfileScreen(viewModel, chatId, mainNavController)
-                                        }
-                                    }
-                                }
-                            }
-                            composable("group_admin/{chatId}") { backStackEntry -> 
-                                val chatId = backStackEntry.arguments?.getString("chatId")
-                                if (chatId != null) {
-                                    CompositionLocalProvider(LocalAnimatedVisibilityScope provides this@composable) {
-                                        ChannelGroupAdminScreen(viewModel, chatId, mainNavController)
-                                    }
-                                }
-                            }
-                            composable("channel_admin/{chatId}") { backStackEntry -> 
-                                val chatId = backStackEntry.arguments?.getString("chatId")
-                                if (chatId != null) {
-                                    CompositionLocalProvider(LocalAnimatedVisibilityScope provides this@composable) {
-                                        ChannelGroupAdminScreen(viewModel, chatId, mainNavController)
-                                    }
-                                }
-                            }
-                            composable("channel_appearance/{chatId}") { backStackEntry -> 
-                                val chatId = backStackEntry.arguments?.getString("chatId")
-                                if (chatId != null) {
-                                    CompositionLocalProvider(LocalAnimatedVisibilityScope provides this@composable) {
-                                        ChannelAppearanceScreen(viewModel, chatId, mainNavController)
-                                    }
-                                }
-                            }
-                            composable("channel_boost/{chatId}") { backStackEntry -> 
-                                val chatId = backStackEntry.arguments?.getString("chatId")
-                                if (chatId != null) {
-                                    CompositionLocalProvider(LocalAnimatedVisibilityScope provides this@composable) {
-                                        ChannelBoostScreen(viewModel, chatId, mainNavController)
-                                    }
-                                }
-                            }
-                        }
+                            viewModel = viewModel,
+                            isStoryExpanded = isStoryExpanded,
+                            onStoryExpandedChange = { isStoryExpanded = it }
+                        )
                     }
                 }
 
