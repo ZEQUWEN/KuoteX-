@@ -19,6 +19,11 @@ class MyApplication : Application(), ImageLoaderFactory {
         super.onCreate()
         initFirebase()
         try {
+            com.example.di.Injector.init(com.example.di.DefaultAppContainer(this))
+        } catch (e: Exception) {
+            Log.w("MyApplication", "Injector init: ${e.message}")
+        }
+        try {
             com.example.config.FirebaseRemoteConfigManager.init(this)
         } catch (e: Exception) {
             Log.w("MyApplication", "FirebaseRemoteConfigManager init: ${e.message}")

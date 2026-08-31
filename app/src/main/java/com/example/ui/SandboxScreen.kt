@@ -18,6 +18,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import com.example.di.Injector
+import com.example.di.MessengerSandbox
 import com.example.ui.botapi.BotRegistry
 import com.example.ui.botapi.CustomBot
 import com.example.ui.botapi.LogEntry
@@ -25,7 +27,12 @@ import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SandboxScreen(viewModel: AppViewModel, botId: String, navController: NavController) {
+fun SandboxScreen(
+    viewModel: AppViewModel,
+    botId: String,
+    navController: NavController,
+    sandboxEngine: MessengerSandbox = Injector.get().messengerSandbox
+) {
     val bot = BotRegistry.getBot(botId) as? CustomBot
 
     if (bot == null) {
@@ -41,6 +48,7 @@ fun SandboxScreen(viewModel: AppViewModel, botId: String, navController: NavCont
     // Sandbox chat state
     var chatMessages by remember { mutableStateOf(listOf<SandboxMessage>()) }
     var inputText by remember { mutableStateOf("") }
+    val templates = remember { sandboxEngine.getAvailableTemplates() }
 
     Scaffold(
         topBar = {
@@ -57,13 +65,21 @@ fun SandboxScreen(viewModel: AppViewModel, botId: String, navController: NavCont
                         Icon(Icons.Filled.LibraryBooks, contentDescription = "Templates")
                     }
                     DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
-                        DropdownMenuItem(text = { Text("Greeting Bot") }, onClick = { codeText = "fun handleMessage(msg: String): String {\n    return \"Hello! Welcome to our neon chat!\"\n}"; menuExpanded = false })
-                        DropdownMenuItem(text = { Text("Survey Bot") }, onClick = { codeText = "fun handleMessage(msg: String): String {\n    return \"Please rate our service from 1 to 5.\"\n}"; menuExpanded = false })
-                        DropdownMenuItem(text = { Text("Weather Bot") }, onClick = { codeText = "fun handleMessage(msg: String): String {\n    return \"It is currently sunny with a neon glow in Cyber City.\"\n}"; menuExpanded = false })
+                        templates.forEach { template ->
+                            DropdownMenuItem(
+                                text = { Text(template.name) },
+                                onClick = {
+                                    codeText = template.code
+                                    menuExpanded = false
+                                }
+                            )
+                        }
                     }
                     IconButton(onClick = {
-                        bot.code = codeText; com.example.ui.botapi.BotRegistry.saveCustomBots()
-                        // Simulate saving
+                        bot.code = codeText
+                        com.example.ui.botapi.BotRegistry.saveCustomBots()
+                        val result = sandboxEngine.runCustomApp(codeText)
+                        bot.logs.add(LogEntry(message = "Build check: ${result.output}"))
                     }) {
                         Icon(Icons.Filled.Save, contentDescription = "Save Code")
                     }
@@ -171,9 +187,13 @@ fun SandboxScreen(viewModel: AppViewModel, botId: String, navController: NavCont
                                     
                                     bot.logs.add(LogEntry(message = "Sandbox input: $toSend"))
                                     
-                                    // Evaluate simple logic (Mock)
-                                    // In a real sandbox, this would invoke a JS/Kotlin script engine.
-                                    val replyText = simulateBotExecution(toSend, bot.name, codeText)
+                                    // Evaluate logic via Dependency Injection Sandbox Engine
+                                    val execResult = sandboxEngine.runCustomApp(codeText)
+                                    val replyText = if (execResult.success) {
+                                        simulateBotExecution(toSend, bot.name, codeText)
+                                    } else {
+                                        "⚠️ Sandbox Engine Error:\n" + execResult.errors.joinToString("\n")
+                                    }
                                     
                                     bot.logs.add(LogEntry(message = "Sandbox output: $replyText"))
                                     

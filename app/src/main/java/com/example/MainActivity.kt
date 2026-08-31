@@ -116,15 +116,21 @@ class MainActivity : ComponentActivity() {
         try {
             com.example.data.CryptoManager.init(applicationContext)
             net.sqlcipher.database.SQLiteDatabase.loadLibs(applicationContext)
-            val db = com.example.data.SecureDatabaseHelper.getInstance(applicationContext).database
-
-            val sharedPrefs = getSharedPreferences("neon_messenger_prefs", android.content.Context.MODE_PRIVATE)
-            com.example.ui.botapi.BotRegistry.init(db.botDao())
-            val okHttpClient = com.example.data.NetworkModule.provideOkHttpClient(applicationContext) { type, bytesReceived, bytesSent, path ->
-                // Do nothing for now
+            
+            // Ensure DI Injector is initialized
+            try {
+                com.example.di.Injector.init(com.example.di.DefaultAppContainer(applicationContext))
+            } catch (e: Exception) {
+                // Already initialized in Application or prior step
             }
 
-            val webSocketManager = com.example.data.WebSocketManager(okHttpClient)
+            val appContainer = com.example.di.Injector.get()
+            val db = appContainer.database
+            val sharedPrefs = appContainer.sharedPreferences
+            val repository = appContainer.messengerRepository
+            val userPrefs = appContainer.userPreferencesRepository
+
+            com.example.ui.botapi.BotRegistry.init(db.botDao())
             
             // Setup WorkManager for edge cases (background sync)
             val workRequest = androidx.work.PeriodicWorkRequestBuilder<com.example.data.MessageSyncWorker>(
@@ -144,24 +150,6 @@ class MainActivity : ComponentActivity() {
                 androidx.work.ExistingPeriodicWorkPolicy.KEEP,
                 cacheCleanupRequest
             )
-            
-            val repository = MessengerRepository(
-                db.botDao(), 
-                db.userDao(), 
-                db.chatDao(), 
-                db.messageDao(), 
-                db.groupMemberDao(), 
-                db.draftDao(), 
-                db.contactDao(), 
-                db.paymentTransactionDao(),
-                db.queuedMessageDao(),
-                sharedPrefs, 
-                webSocketManager
-            )
-
-
-
-            val userPrefs = com.example.data.UserPreferencesRepository(applicationContext.dataStore)
             
             // Start presence background worker
             try {

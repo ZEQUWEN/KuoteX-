@@ -191,7 +191,12 @@ data class UserPresence(
     val lastSeen: Long
 )
 
-class AppViewModel(val repository: MessengerRepository, val userPrefs: com.example.data.UserPreferencesRepository) : ViewModel() {
+class AppViewModel(
+    val repository: MessengerRepository,
+    val userPrefs: com.example.data.UserPreferencesRepository,
+    val themeEngine: com.example.di.ThemeEngine = com.example.di.Injector.get().themeEngine,
+    val sandboxEngine: com.example.di.MessengerSandbox = com.example.di.Injector.get().messengerSandbox
+) : ViewModel() {
     private val _searchQuery = MutableStateFlow("")
     val searchQuery = _searchQuery.asStateFlow()
 
