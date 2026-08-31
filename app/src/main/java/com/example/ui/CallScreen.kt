@@ -31,6 +31,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavController
+import com.example.di.Injector
+import com.example.webrtc.CallConnectionState
+import com.example.webrtc.WebRtcCallSession
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.MultiplePermissionsState
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
@@ -52,6 +55,19 @@ enum class CallState {
 fun CallScreen(viewModel: AppViewModel, chatId: String, isVideo: Boolean, navController: NavController) {
     val chats by viewModel.chats.collectAsState()
     val chat = chats.find { it.id == chatId }
+
+    // Scoped / Factory session instance created on entry and disposed immediately on exit
+    val callSession = remember(chatId, isVideo) {
+        Injector.get().createCallSession(chatId, isVideo)
+    }
+
+    DisposableEffect(callSession) {
+        callSession.initializeCall()
+        onDispose {
+            // Instant release of WebRTC memory, camera channels, and audio buffers
+            callSession.close()
+        }
+    }
     
     val permissionsToRequest = mutableListOf(Manifest.permission.RECORD_AUDIO)
     if (isVideo) {
@@ -67,7 +83,12 @@ fun CallScreen(viewModel: AppViewModel, chatId: String, isVideo: Boolean, navCon
     }
 
     if (permissionsState.allPermissionsGranted) {
-        CallContent(chatTitle = chat?.title ?: "Unknown", isVideo = isVideo, onEndCall = { navController.popBackStack() })
+        CallContent(
+            chatTitle = chat?.title ?: "Unknown",
+            isVideo = isVideo,
+            session = callSession,
+            onEndCall = { navController.popBackStack() }
+        )
     } else {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -86,7 +107,12 @@ fun CallScreen(viewModel: AppViewModel, chatId: String, isVideo: Boolean, navCon
 }
 
 @Composable
-fun CallContent(chatTitle: String, isVideo: Boolean, onEndCall: () -> Unit) {
+fun CallContent(
+    chatTitle: String,
+    isVideo: Boolean,
+    session: WebRtcCallSession? = null,
+    onEndCall: () -> Unit
+) {
     var callState by remember { mutableStateOf(CallState.CONNECTING) }
     var callDuration by remember { mutableStateOf(0) }
     var isMuted by remember { mutableStateOf(false) }

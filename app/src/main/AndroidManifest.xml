@@ -20,7 +20,7 @@
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
 
     <application
-        android:name=".MyApplication"
+        android:name=".KuoteXApplication"
         android:allowBackup="true"
         android:enableOnBackInvokedCallback="true"
         android:dataExtractionRules="@xml/data_extraction_rules"

@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import com.example.crypto.CryptoSession
 import com.example.crypto.SignalProtocolManager
 import com.example.data.AppDatabase
 import com.example.data.MessengerRepository
@@ -12,6 +13,7 @@ import com.example.data.UserPreferencesRepository
 import com.example.data.WebSocketManager
 import com.example.data.dataStore
 import com.example.ui.botapi.BotRegistry
+import com.example.webrtc.WebRtcCallSession
 import okhttp3.OkHttpClient
 
 /**
@@ -26,10 +28,14 @@ interface AppContainer {
     val userPreferencesRepository: UserPreferencesRepository
     val okHttpClient: OkHttpClient
     val webSocketManager: WebSocketManager
-    val signalProtocolManager: SignalProtocolManager
     val messengerRepository: MessengerRepository
     val messengerSandbox: MessengerSandbox
     val themeEngine: ThemeEngine
+
+    // Factory methods for Ephemeral / Scoped instances (avoiding memory leaks)
+    fun createSignalProtocolManager(): SignalProtocolManager
+    fun createCryptoSession(sessionId: String = "sess_${System.currentTimeMillis()}"): CryptoSession
+    fun createCallSession(chatId: String, isVideo: Boolean): WebRtcCallSession
 }
 
 /**
@@ -57,9 +63,12 @@ class DefaultAppContainer(override val context: Context) : AppContainer {
         WebSocketManager(okHttpClient)
     }
 
-    override val signalProtocolManager: SignalProtocolManager by lazy {
-        SignalProtocolManager()
-    }
+    override fun createSignalProtocolManager(): SignalProtocolManager = SignalProtocolManager()
+
+    override fun createCryptoSession(sessionId: String): CryptoSession = CryptoSession(sessionId)
+
+    override fun createCallSession(chatId: String, isVideo: Boolean): WebRtcCallSession =
+        WebRtcCallSession(chatId, isVideo)
 
     override val messengerRepository: MessengerRepository by lazy {
         val db = database

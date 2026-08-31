@@ -76,14 +76,15 @@ class MainActivity : ComponentActivity() {
         try {
             FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
                 if (!task.isSuccessful) {
-                    Log.w("FCM", "Fetching FCM registration token failed", task.exception)
+                    val ex = task.exception
+                    Log.w("FCM", "FCM token retrieval notice: ${ex?.message}")
                     return@addOnCompleteListener
                 }
                 val token = task.result
                 Log.d("FCM", "FCM Token: $token")
             }
-        } catch(e: Exception) {
-            Log.e("FCM", "Error fetching FCM token: ${e.message}")
+        } catch (e: Throwable) {
+            Log.w("FCM", "Safe FCM token retrieval catch: ${e.message}")
         }
     }
 
@@ -93,16 +94,11 @@ class MainActivity : ComponentActivity() {
 
         try {
             if (FirebaseApp.getApps(this).isEmpty()) {
-                val options = FirebaseOptions.Builder()
-                    .setProjectId("mock-project")
-                    .setApplicationId("1:1234567890:android:abcdef123456")
-                    .setApiKey("mock-api-key")
-                    .build()
-                FirebaseApp.initializeApp(this, options)
+                FirebaseApp.initializeApp(this)
             }
             com.example.analytics.AnalyticsTracker.init(this)
         } catch (e: Exception) {
-            Log.e("Firebase", "Firebase initialization failed: ${e.message}")
+            Log.w("Firebase", "Firebase initialization check: ${e.message}")
         }
 
         com.example.utils.CrashReporter.init(this)
