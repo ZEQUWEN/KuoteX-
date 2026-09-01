@@ -75,14 +75,23 @@ class MainActivity : ComponentActivity() {
 
     private fun fetchFCMToken() {
         try {
-            FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+            val messaging = FirebaseMessaging.getInstance()
+            messaging.isAutoInitEnabled = false
+            messaging.token.addOnCompleteListener { task ->
                 if (!task.isSuccessful) {
                     val ex = task.exception
-                    Log.w("FCM", "FCM token retrieval notice: ${ex?.message}")
+                    val errorMsg = ex?.message ?: "Unknown error"
+                    if (errorMsg.contains("TOO_MANY_REGISTRATIONS", ignoreCase = true)) {
+                        Log.w("FCM", "FCM: Too many app registrations on device/emulator, skipping push token sync: $errorMsg")
+                    } else if (errorMsg.contains("SERVICE_NOT_AVAILABLE", ignoreCase = true)) {
+                        Log.w("FCM", "FCM: Google Play Services unavailable for push tokens: $errorMsg")
+                    } else {
+                        Log.w("FCM", "FCM token retrieval notice: $errorMsg")
+                    }
                     return@addOnCompleteListener
                 }
                 val token = task.result
-                Log.d("FCM", "FCM Token: $token")
+                Log.d("FCM", "FCM Token acquired successfully: $token")
             }
         } catch (e: Throwable) {
             Log.w("FCM", "Safe FCM token retrieval catch: ${e.message}")
