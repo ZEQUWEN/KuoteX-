@@ -32,7 +32,7 @@ fun DatabaseDiagnosticScreen() {
                 SQLiteDatabase.loadLibs(context.applicationContext)
                 val db = SQLiteDatabase.openDatabase(
                     dbFile.absolutePath,
-                    String(passphrase),
+                    passphrase,
                     null,
                     SQLiteDatabase.OPEN_READWRITE
                 )

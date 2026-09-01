@@ -12,13 +12,13 @@ object DatabaseDiagnosticUtility {
 
     fun performStartupDiagnostics(context: Context, dbName: String, passphrase: CharArray) {
         val dbFile = context.getDatabasePath(dbName)
-        if (!dbFile.exists()) return
+        if (!dbFile.exists() || dbFile.length() == 0L) return
 
         try {
             SQLiteDatabase.loadLibs(context.applicationContext)
             val db = SQLiteDatabase.openDatabase(
                 dbFile.absolutePath,
-                String(passphrase),
+                passphrase,
                 null,
                 SQLiteDatabase.OPEN_READWRITE
             )
@@ -35,9 +35,9 @@ object DatabaseDiagnosticUtility {
             integrityCursor.close()
 
             if (!isIntegrityOk) {
-                Log.e(TAG, "Integrity check failed. Database might be corrupted.")
+                Log.w(TAG, "Integrity check failed. Database might be corrupted. Cleaning database.")
                 db.close()
-                context.deleteDatabase(dbName)
+                deleteDatabaseFiles(context, dbName)
                 return
             }
 
@@ -62,8 +62,23 @@ object DatabaseDiagnosticUtility {
 
             db.close()
         } catch (e: Exception) {
-            Log.e(TAG, "Error during database diagnostics: ${e.message}", e)
+            Log.w(TAG, "Database diagnostic notice (resetting stale/unencrypted file): ${e.message}")
+            deleteDatabaseFiles(context, dbName)
+        }
+    }
+
+    private fun deleteDatabaseFiles(context: Context, dbName: String) {
+        try {
             context.deleteDatabase(dbName)
+            val dbFile = context.getDatabasePath(dbName)
+            val parent = dbFile.parentFile
+            if (parent != null && parent.exists()) {
+                File(parent, "$dbName-wal").delete()
+                File(parent, "$dbName-shm").delete()
+                File(parent, "$dbName-journal").delete()
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Error cleaning database files: ${e.message}")
         }
     }
 

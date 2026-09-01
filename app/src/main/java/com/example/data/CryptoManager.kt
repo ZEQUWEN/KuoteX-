@@ -9,28 +9,15 @@ import java.nio.charset.StandardCharsets
 import android.util.Base64
 
 object CryptoManager {
+    @Volatile
     private var aead: Aead? = null
     private const val KEYSET_NAME = "messenger_keyset"
     private const val PREF_FILE_NAME = "messenger_crypto_prefs"
     private const val MASTER_KEY_URI = "android-keystore://messenger_master_key"
+    private const val PREF_DB_PASSPHRASE = "db_passphrase_v2"
+    private const val PREF_RAW_FALLBACK = "db_passphrase_raw"
 
-    
-    private const val PREF_DB_PASSPHRASE = "db_passphrase"
-
-    fun getDatabasePassphrase(context: Context): CharArray {
-        val prefs = context.getSharedPreferences(PREF_FILE_NAME, Context.MODE_PRIVATE)
-        var encryptedPassphrase = prefs.getString(PREF_DB_PASSPHRASE, null)
-        if (encryptedPassphrase == null) {
-            val randomBytes = ByteArray(32)
-            java.security.SecureRandom().nextBytes(randomBytes)
-            val newPassphrase = android.util.Base64.encodeToString(randomBytes, android.util.Base64.NO_WRAP)
-            encryptedPassphrase = encrypt(newPassphrase)
-            prefs.edit().putString(PREF_DB_PASSPHRASE, encryptedPassphrase).apply()
-            return newPassphrase.toCharArray()
-        }
-        return decrypt(encryptedPassphrase).toCharArray()
-    }
-
+    @Synchronized
     fun init(context: Context) {
         if (aead != null) return
         try {
@@ -44,8 +31,44 @@ object CryptoManager {
             
             aead = keysetHandle.getPrimitive(Aead::class.java)
         } catch (e: Exception) {
-            e.printStackTrace()
+            try {
+                val keysetHandle = AndroidKeysetManager.Builder()
+                    .withSharedPref(context.applicationContext, KEYSET_NAME, PREF_FILE_NAME)
+                    .withKeyTemplate(KeyTemplates.get("AES256_GCM"))
+                    .build()
+                    .keysetHandle
+                aead = keysetHandle.getPrimitive(Aead::class.java)
+            } catch (e2: Exception) {
+                // Keystore fallback if unavailable on device/container
+            }
         }
+    }
+
+    @Synchronized
+    fun getDatabasePassphrase(context: Context): CharArray {
+        init(context)
+        val prefs = context.getSharedPreferences(PREF_FILE_NAME, Context.MODE_PRIVATE)
+        val encryptedPassphrase = prefs.getString(PREF_DB_PASSPHRASE, null)
+        if (!encryptedPassphrase.isNullOrEmpty()) {
+            val decrypted = decrypt(encryptedPassphrase)
+            if (decrypted.isNotEmpty() && decrypted != encryptedPassphrase) {
+                return decrypted.toCharArray()
+            }
+        }
+
+        var rawPassphrase = prefs.getString(PREF_RAW_FALLBACK, null)
+        if (rawPassphrase.isNullOrEmpty()) {
+            val randomBytes = ByteArray(32)
+            java.security.SecureRandom().nextBytes(randomBytes)
+            rawPassphrase = Base64.encodeToString(randomBytes, Base64.NO_WRAP)
+            prefs.edit().putString(PREF_RAW_FALLBACK, rawPassphrase).apply()
+        }
+
+        val encrypted = encrypt(rawPassphrase)
+        if (encrypted != rawPassphrase) {
+            prefs.edit().putString(PREF_DB_PASSPHRASE, encrypted).apply()
+        }
+        return rawPassphrase.toCharArray()
     }
 
     fun encrypt(plaintext: String): String {

@@ -23,6 +23,14 @@ class KuoteXApplication : Application(), ImageLoaderFactory {
     override fun onCreate() {
         super.onCreate()
 
+        // 0. Initialize Security & Native Encryption Subsystems early
+        try {
+            com.example.data.CryptoManager.init(this)
+            net.sqlcipher.database.SQLiteDatabase.loadLibs(this)
+        } catch (e: Exception) {
+            Log.w("KuoteXApplication", "Security subsystems init: ${e.message}")
+        }
+
         // 1. Initialize Koin Dependency Injection
         try {
             startKoin {

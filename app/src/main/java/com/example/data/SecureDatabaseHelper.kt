@@ -9,14 +9,18 @@ class SecureDatabaseHelper private constructor(context: Context) {
     val database: AppDatabase
 
     init {
+        val appContext = context.applicationContext
         val dbName = "messenger_database_encrypted"
-        val passphrase = CryptoManager.getDatabasePassphrase(context)
-        DatabaseDiagnosticUtility.performStartupDiagnostics(context, dbName, passphrase)
+        net.sqlcipher.database.SQLiteDatabase.loadLibs(appContext)
 
-        val factory = SupportFactory(String(passphrase).toByteArray())
+        val passphrase = CryptoManager.getDatabasePassphrase(appContext)
+        val passphraseBytes = net.sqlcipher.database.SQLiteDatabase.getBytes(passphrase)
+        DatabaseDiagnosticUtility.performStartupDiagnostics(appContext, dbName, passphrase)
+
+        val factory = SupportFactory(passphraseBytes)
 
         database = Room.databaseBuilder(
-            context.applicationContext,
+            appContext,
             AppDatabase::class.java,
             dbName
         )
