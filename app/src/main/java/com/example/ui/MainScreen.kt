@@ -62,6 +62,13 @@ import com.example.ui.channel.*
 
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.lazy.LazyRow
@@ -786,8 +793,12 @@ fun ChatListScreen(viewModel: AppViewModel, navController: NavController, isStor
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
                 placeholder = { Text("Search chats...", color = MaterialTheme.colorScheme.onSurfaceVariant) },
-                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = "Search", tint = MaterialTheme.colorScheme.primary) },
-                modifier = Modifier.weight(1f),
+                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                modifier = Modifier
+                    .weight(1f)
+                    .semantics {
+                        contentDescription = "Поиск по чатам и сообщениям"
+                    },
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                     unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
@@ -814,11 +825,23 @@ fun ChatListScreen(viewModel: AppViewModel, navController: NavController, isStor
             }
         ) {
             tabs.forEachIndexed { index, title ->
+                val tabSemanticLabel = when (title) {
+                    "All" -> "Все чаты"
+                    "Personal" -> "Личные чаты"
+                    "Groups" -> "Группы"
+                    "Channels" -> "Каналы"
+                    "Bots" -> "Боты"
+                    else -> title
+                }
                 Tab(
                     selected = selectedTabIndex == index,
                     onClick = { selectedTabIndex = index },
                     text = { Text(title, fontWeight = if (selectedTabIndex == index) FontWeight.Bold else FontWeight.Normal) },
-                    unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.semantics {
+                        role = Role.Tab
+                        contentDescription = "Вкладка $tabSemanticLabel"
+                    }
                 )
             }
         }
@@ -849,7 +872,15 @@ fun ChatListScreen(viewModel: AppViewModel, navController: NavController, isStor
                                     Icon(Icons.Filled.Archive, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             },
-                            modifier = Modifier.clickable { navController.navigate("archived_chats") }
+                            modifier = Modifier
+                                .clickable(
+                                    onClick = { navController.navigate("archived_chats") },
+                                    onClickLabel = "Открыть архивные чаты"
+                                )
+                                .semantics(mergeDescendants = true) {
+                                    role = Role.Button
+                                    contentDescription = "Архивные чаты, $archivedCount чатов"
+                                }
                         )
                     }
                 }
@@ -970,10 +1001,56 @@ fun ChatListItem(
     onClick: () -> Unit, 
     onAvatarClick: () -> Unit = {}
 ) {
+    val chatTypeLabel = when {
+        chat.isSecret -> "Секретный чат"
+        chat.isChannel -> "Канал"
+        chat.isGroup -> "Группа"
+        chat.isBot -> "Бот"
+        else -> "Личный чат"
+    }
+    val presenceLabel = if (!chat.isGroup && !chat.isChannel && !chat.isBot) {
+        if (presence?.isOnline == true) "В сети"
+        else if (presence != null && presence.lastSeen > 0) {
+            val diff = System.currentTimeMillis() - presence.lastSeen
+            val timeStr = when {
+                diff < 60_000 -> "только что"
+                diff < 3600_000 -> "${diff / 60_000} мин. назад"
+                diff < 86400_000 -> "${diff / 3600_000} ч. назад"
+                else -> "${diff / 86400_000} дн. назад"
+            }
+            "был(а) $timeStr"
+        } else null
+    } else null
+
+    val messageStatusLabel = when {
+        isTyping -> "Печатает..."
+        !draftText.isNullOrBlank() -> "Черновик: $draftText"
+        !chat.lastMessageSenderName.isNullOrEmpty() && (chat.isGroup || chat.lastMessageSenderName == "You") -> "${chat.lastMessageSenderName}: ${chat.lastMessage}"
+        chat.lastMessage.isNotEmpty() -> chat.lastMessage
+        else -> "Нет сообщений"
+    }
+
+    val unreadLabel = if (chat.unreadCount > 0) "${chat.unreadCount} непрочитанных сообщений" else null
+
+    val chatItemAccessibilityDescription = listOfNotNull(
+        chatTypeLabel,
+        chat.title,
+        presenceLabel,
+        messageStatusLabel,
+        unreadLabel
+    ).joinToString(", ")
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .clickable(
+                onClick = onClick,
+                onClickLabel = "Открыть чат ${chat.title}"
+            )
+            .semantics(mergeDescendants = true) {
+                contentDescription = chatItemAccessibilityDescription
+                role = Role.Button
+            }
             .padding(vertical = 12.dp, horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -988,7 +1065,14 @@ fun ChatListItem(
                 .clip(CircleShape)
                 .background(androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant)
                 .border(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.8f), CircleShape)
-                .clickable { onAvatarClick() },
+                .clickable(
+                    onClick = { onAvatarClick() },
+                    onClickLabel = "Посмотреть профиль ${chat.title}"
+                )
+                .semantics {
+                    contentDescription = "Аватар ${chat.title}"
+                    role = Role.Button
+                },
             contentAlignment = Alignment.Center
         ) {
             AsyncImage(
@@ -996,7 +1080,7 @@ fun ChatListItem(
                     .data(avatarUrl)
                     .crossfade(true)
                     .build(),
-                contentDescription = "Profile Picture",
+                contentDescription = null,
                 contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                 modifier = Modifier.fillMaxSize().clip(CircleShape)
             )
@@ -1010,16 +1094,16 @@ fun ChatListItem(
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (chat.isSecret) {
-                    Icon(Icons.Filled.Lock, contentDescription = "Secret Chat", modifier = Modifier.size(16.dp), tint = Color(0xFF4CAF50))
+                    Icon(Icons.Filled.Lock, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color(0xFF4CAF50))
                     Spacer(Modifier.width(4.dp))
                 } else if (chat.isChannel) {
-                    Icon(Icons.Filled.Campaign, contentDescription = "Channel", modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                    Icon(Icons.Filled.Campaign, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
                     Spacer(Modifier.width(4.dp))
                 } else if (chat.isGroup) {
-                    Icon(Icons.Filled.Groups, contentDescription = "Group", modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.secondary)
+                    Icon(Icons.Filled.Groups, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.secondary)
                     Spacer(Modifier.width(4.dp))
                 } else if (chat.isBot) {
-                    Icon(Icons.Filled.SmartToy, contentDescription = "Bot", modifier = Modifier.size(16.dp), tint = Color(0xFF00D4FF))
+                    Icon(Icons.Filled.SmartToy, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color(0xFF00D4FF))
                     Spacer(Modifier.width(4.dp))
                 }
                 Text(chat.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
@@ -1970,7 +2054,15 @@ fun AccountDrawerContent(viewModel: AppViewModel, onCloseDrawer: () -> Unit, nav
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { isAccountsExpanded = !isAccountsExpanded }
+                .clickable(
+                    onClick = { isAccountsExpanded = !isAccountsExpanded },
+                    onClickLabel = if (isAccountsExpanded) "Свернуть список аккаунтов" else "Развернуть список аккаунтов"
+                )
+                .semantics(mergeDescendants = true) {
+                    contentDescription = "Активный профиль: ${activeAccount?.displayName ?: ""}, ${activeAccount?.username ?: ""}. " +
+                            if (isAccountsExpanded) "Список аккаунтов развернут" else "Нажмите чтобы развернуть список аккаунтов"
+                    role = Role.Button
+                }
                 .padding(16.dp)
                 .padding(top = 24.dp)
         ) {
@@ -1989,7 +2081,7 @@ fun AccountDrawerContent(viewModel: AppViewModel, onCloseDrawer: () -> Unit, nav
                                 .data(account?.profilePicUrl ?: "")
                                 .crossfade(true)
                                 .build(),
-                            contentDescription = "Profile Picture",
+                            contentDescription = "Фото профиля ${account?.displayName ?: ""}",
                             modifier = Modifier
                                 .size(64.dp)
                                 .clip(CircleShape)
@@ -2006,7 +2098,7 @@ fun AccountDrawerContent(viewModel: AppViewModel, onCloseDrawer: () -> Unit, nav
             Box(modifier = Modifier.align(Alignment.TopEnd).padding(top = 20.dp)) {
                 Icon(
                     if (isAccountsExpanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
-                    contentDescription = "Expand Accounts"
+                    contentDescription = null
                 )
             }
         }

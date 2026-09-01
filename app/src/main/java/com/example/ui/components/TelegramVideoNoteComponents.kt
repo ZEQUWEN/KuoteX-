@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -92,12 +93,28 @@ fun TelegramRecordActionButton(
         MaterialTheme.colorScheme.primary
     }
 
+    val actionButtonDescription = if (isRecording) {
+        "Идет запись сообщения. Отпустите для отправки, смахните влево для отмены"
+    } else if (mode == ChatInputMode.VIDEO) {
+        "Кнопка видеокружочка. Нажмите для переключения на голос, удерживайте для записи"
+    } else {
+        "Кнопка голосового сообщения. Нажмите для переключения на видео, удерживайте для записи"
+    }
+
     Box(
         modifier = modifier
             .size(46.dp)
             .scale(if (isRecording) pulseScale else 1f)
             .clip(CircleShape)
             .background(buttonBgColor)
+            .semantics(mergeDescendants = true) {
+                role = Role.Button
+                contentDescription = actionButtonDescription
+                onClick(label = "Переключить режим записи") {
+                    onToggleMode()
+                    true
+                }
+            }
             .pointerInput(mode) {
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
@@ -648,6 +665,20 @@ fun TelegramRoundVideoBubble(
         label = "spin_angle"
     )
 
+    val videoAccessibilityLabel = remember(durationText, isMe, isPlaying, isDelivered, isRead, isE2EEncrypted) {
+        buildString {
+            if (isMe) append("Вы: ") else append("Собеседник: ")
+            append("Видеокружочек, длительность $durationText. ")
+            if (isPlaying) append("Воспроизводится. ")
+            if (isMe) {
+                if (isRead) append("Прочитано. ")
+                else if (isDelivered) append("Доставлено. ")
+                else append("В очереди. ")
+            }
+            if (isE2EEncrypted) append("Сквозное шифрование. ")
+        }
+    }
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -657,6 +688,14 @@ fun TelegramRoundVideoBubble(
         Box(
             modifier = Modifier
                 .size(210.dp)
+                .semantics(mergeDescendants = true) {
+                    contentDescription = videoAccessibilityLabel
+                    role = Role.Button
+                    if (isSelectionMode) {
+                        selected = isSelected
+                        role = Role.Checkbox
+                    }
+                }
                 .combinedClickable(
                     onClick = {
                         if (isSelectionMode) {
@@ -665,9 +704,11 @@ fun TelegramRoundVideoBubble(
                             isPlaying = !isPlaying
                         }
                     },
+                    onClickLabel = if (isSelectionMode) "Выбрать видеосообщение" else if (isPlaying) "Приостановить воспроизведение" else "Воспроизвести видеосообщение",
                     onLongClick = {
                         onLongClick?.invoke()
-                    }
+                    },
+                    onLongClickLabel = "Действия с видеосообщением"
                 ),
             contentAlignment = Alignment.Center
         ) {

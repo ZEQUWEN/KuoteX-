@@ -48,6 +48,7 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.semantics.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.example.ui.channel.*
@@ -425,12 +426,15 @@ fun ChatScreen(viewModel: AppViewModel, chatId: String, navController: NavContro
                         Text(
                             text = "Выбрано: ${selectedMessageIds.size}",
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                            modifier = Modifier.semantics {
+                                contentDescription = "Выбрано сообщений: ${selectedMessageIds.size}"
+                            }
                         )
                     },
                     navigationIcon = {
                         IconButton(onClick = { selectedMessageIds = emptySet() }) {
-                            Icon(Icons.Filled.Close, contentDescription = "Отмена выбора")
+                            Icon(Icons.Filled.Close, contentDescription = "Отменить выбор сообщений")
                         }
                     },
                     actions = {
@@ -440,6 +444,7 @@ fun ChatScreen(viewModel: AppViewModel, chatId: String, navController: NavContro
                         // Pin/Unpin if single message selected
                         if (selectedMessageIds.size == 1) {
                             val singleMsg = selectedMsgs.firstOrNull()
+                            val isPinned = singleMsg?.isPinned == true
                             IconButton(onClick = {
                                 singleMsg?.let {
                                     if (it.isPinned) {
@@ -452,7 +457,7 @@ fun ChatScreen(viewModel: AppViewModel, chatId: String, navController: NavContro
                             }) {
                                 Icon(
                                     Icons.Filled.PushPin,
-                                    contentDescription = "Закрепить/Открепить"
+                                    contentDescription = if (isPinned) "Открепить выбранное сообщение" else "Закрепить выбранное сообщение"
                                 )
                             }
                         }
@@ -465,18 +470,18 @@ fun ChatScreen(viewModel: AppViewModel, chatId: String, navController: NavContro
                             }
                             selectedMessageIds = emptySet()
                         }) {
-                            Icon(Icons.Filled.ContentCopy, contentDescription = "Копировать")
+                            Icon(Icons.Filled.ContentCopy, contentDescription = "Копировать выбранные сообщения")
                         }
                         if (!chat.isSecret) {
                             IconButton(onClick = {
                                 messagesToForward = selectedMsgs
                                 selectedMessageIds = emptySet()
                             }) {
-                                Icon(Icons.AutoMirrored.Filled.Forward, contentDescription = "Переслать")
+                                Icon(Icons.AutoMirrored.Filled.Forward, contentDescription = "Переслать выбранные сообщения")
                             }
                         }
                         IconButton(onClick = { showBatchDeleteDialog = true }) {
-                            Icon(Icons.Filled.Delete, contentDescription = "Удалить", tint = MaterialTheme.colorScheme.error)
+                            Icon(Icons.Filled.Delete, contentDescription = "Удалить выбранные сообщения", tint = MaterialTheme.colorScheme.error)
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
@@ -489,8 +494,13 @@ fun ChatScreen(viewModel: AppViewModel, chatId: String, navController: NavContro
                         OutlinedTextField(
                             value = searchQuery,
                             onValueChange = { searchQuery = it },
-                            modifier = Modifier.fillMaxWidth().height(50.dp),
-                            placeholder = { Text("Search messages...") },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(50.dp)
+                                .semantics {
+                                    contentDescription = "Поле поиска сообщений в чате"
+                                },
+                            placeholder = { Text("Поиск по сообщениям...") },
                             singleLine = true
                         )
                     },
@@ -501,12 +511,12 @@ fun ChatScreen(viewModel: AppViewModel, chatId: String, navController: NavContro
                             isSearchMode = false
                             searchQuery = "" 
                         }) {
-                            Icon(Icons.Default.ArrowBack, contentDescription = "Close Search")
+                            Icon(Icons.Default.ArrowBack, contentDescription = "Закрыть поиск")
                         }
                     },
                     actions = {
                         IconButton(onClick = { showSearchFilters = true }) {
-                            Icon(Icons.Filled.FilterList, contentDescription = "Filters")
+                            Icon(Icons.Filled.FilterList, contentDescription = "Фильтры поиска сообщений")
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
@@ -519,12 +529,62 @@ fun ChatScreen(viewModel: AppViewModel, chatId: String, navController: NavContro
                     val sharedTransitionScope = LocalSharedTransitionScope.current
                     val animatedVisibilityScope = LocalAnimatedVisibilityScope.current
                     
+                    var botUsersText by remember { mutableStateOf<String?>(null) }
+                    if (chat.isBot) {
+                        val activeUsers by viewModel.getBotActiveUsersCount(chat.id).collectAsStateWithLifecycle(initialValue = 0)
+                        if (activeUsers > 0) {
+                            botUsersText = "${java.text.NumberFormat.getInstance(java.util.Locale("ru", "RU")).format(activeUsers)} пользователей"
+                        } else {
+                            botUsersText = "бот"
+                        }
+                    }
+
+                    val subCount = groupMembers.size.coerceAtLeast(1)
+                    val channelSubText = when {
+                        subCount % 10 == 1 && subCount % 100 != 11 -> "$subCount подписчик"
+                        subCount % 10 in 2..4 && (subCount % 100 < 10 || subCount % 100 >= 20) -> "$subCount подписчика"
+                        else -> "$subCount подписчиков"
+                    }
+                    val groupSubText = when {
+                        subCount % 10 == 1 && subCount % 100 != 11 -> "$subCount участник"
+                        subCount % 10 in 2..4 && (subCount % 100 < 10 || subCount % 100 >= 20) -> "$subCount участника"
+                        else -> "$subCount участников"
+                    }
+
+                    val isOnline = presence?.isOnline == true
+                    val lastSeen = presence?.lastSeen ?: 0L
+
+                    val statusText = if (chat.isBot) {
+                        botUsersText ?: "бот"
+                    } else if (chat.isChannel) {
+                        channelSubText
+                    } else if (chat.isGroup) {
+                        groupSubText
+                    } else {
+                        when {
+                            isTyping -> "печатает..."
+                            isOnline -> "в сети"
+                            lastSeen > 0 -> {
+                                val diff = System.currentTimeMillis() - lastSeen
+                                if (diff < 60_000) "был(а) только что"
+                                else if (diff < 3600_000) "был(а) ${diff / 60_000} мин. назад"
+                                else "был(а) ${diff / 3600_000} ч. назад"
+                            }
+                            else -> "был(а) недавно"
+                        }
+                    }
+
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable {
-                                navController.navigate("profile/${chat.id}")
+                            .clickable(
+                                onClick = { navController.navigate("profile/${chat.id}") },
+                                onClickLabel = "Открыть профиль ${chat.title}"
+                            )
+                            .semantics(mergeDescendants = true) {
+                                role = Role.Button
+                                contentDescription = "Чат ${chat.title}, $statusText"
                             }
                             .padding(vertical = 4.dp)
                     ) {
@@ -551,7 +611,7 @@ fun ChatScreen(viewModel: AppViewModel, chatId: String, navController: NavContro
                                 .data(topBarAvatarUrl)
                                 .crossfade(true)
                                 .build(),
-                            contentDescription = "Avatar",
+                            contentDescription = null,
                             modifier = avatarModifier,
                             contentScale = androidx.compose.ui.layout.ContentScale.Crop
                         )
@@ -582,57 +642,13 @@ fun ChatScreen(viewModel: AppViewModel, chatId: String, navController: NavContro
                                     )
                                 }
                             }
-                            val isOnline = presence?.isOnline == true
-                            val lastSeen = presence?.lastSeen ?: 0L
                         
-                        var botUsersText by remember { mutableStateOf<String?>(null) }
-                        if (chat.isBot) {
-                            val activeUsers by viewModel.getBotActiveUsersCount(chat.id).collectAsStateWithLifecycle(initialValue = 0)
-                            if (activeUsers > 0) {
-                                botUsersText = "${java.text.NumberFormat.getInstance(java.util.Locale("ru", "RU")).format(activeUsers)} пользователей"
-                            } else {
-                                botUsersText = "бот"
-                            }
+                            Text(
+                                text = statusText, 
+                                style = MaterialTheme.typography.labelSmall, 
+                                color = if(isTyping) MaterialTheme.colorScheme.primary else if(isOnline && !chat.isBot && !chat.isChannel && !chat.isGroup) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                            )
                         }
-
-                        val subCount = groupMembers.size.coerceAtLeast(1)
-                        val channelSubText = when {
-                            subCount % 10 == 1 && subCount % 100 != 11 -> "$subCount подписчик"
-                            subCount % 10 in 2..4 && (subCount % 100 < 10 || subCount % 100 >= 20) -> "$subCount подписчика"
-                            else -> "$subCount подписчиков"
-                        }
-                        val groupSubText = when {
-                            subCount % 10 == 1 && subCount % 100 != 11 -> "$subCount участник"
-                            subCount % 10 in 2..4 && (subCount % 100 < 10 || subCount % 100 >= 20) -> "$subCount участника"
-                            else -> "$subCount участников"
-                        }
-
-                        val statusText = if (chat.isBot) {
-                            botUsersText ?: "бот"
-                        } else if (chat.isChannel) {
-                            channelSubText
-                        } else if (chat.isGroup) {
-                            groupSubText
-                        } else {
-                            when {
-                                isTyping -> "печатает..."
-                                isOnline -> "в сети"
-                                lastSeen > 0 -> {
-                                    val diff = System.currentTimeMillis() - lastSeen
-                                    if (diff < 60_000) "был(а) только что"
-                                    else if (diff < 3600_000) "был(а) ${diff / 60_000} мин. назад"
-                                    else "был(а) ${diff / 3600_000} ч. назад"
-                                }
-                                else -> "был(а) недавно"
-                            }
-                        }
-                        
-                        Text(
-                            text = statusText, 
-                            style = MaterialTheme.typography.labelSmall, 
-                            color = if(isTyping) MaterialTheme.colorScheme.primary else if(isOnline && !chat.isBot && !chat.isChannel && !chat.isGroup) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                        )
-                    }
                     }
                 },
                 navigationIcon = {
@@ -641,13 +657,13 @@ fun ChatScreen(viewModel: AppViewModel, chatId: String, navController: NavContro
                         keyboardController?.hide()
                         navController.popBackStack() 
                     }) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.Filled.ArrowBack, contentDescription = "Назад к списку чатов")
                     }
                 },
                 actions = {
                     if (!chat.isBot && !chat.isGroup && !chat.isChannel) {
                         IconButton(onClick = { navController.navigate("call/${chat.id}?isVideo=false") }) {
-                            Icon(Icons.Filled.Call, contentDescription = "Voice Call")
+                            Icon(Icons.Filled.Call, contentDescription = "Голосовой звонок")
                         }
                     }
                     
@@ -1286,35 +1302,35 @@ fun ChatScreen(viewModel: AppViewModel, chatId: String, navController: NavContro
                     if (chat.isBot || chat.title.contains("BotFather", ignoreCase = true)) {
                         Box {
                             IconButton(onClick = { botMenuExpanded = true }) {
-                                Icon(Icons.Filled.Terminal, contentDescription = "Bot Commands", tint = MaterialTheme.colorScheme.primary)
+                                Icon(Icons.Filled.Terminal, contentDescription = "Команды бота", tint = MaterialTheme.colorScheme.primary)
                             }
                             DropdownMenu(
                                 expanded = botMenuExpanded,
                                 onDismissRequest = { botMenuExpanded = false }
                             ) {
                                 DropdownMenuItem(
-                                    text = { Text("/start - start/refresh bot") },
+                                    text = { Text("/start - старт/перезапуск бота") },
                                     onClick = {
                                         botMenuExpanded = false
                                         viewModel.sendMessage(chatId, activeAccount?.id ?: "", "/start", null, expiresIn)
                                     }
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("/newbot - create a new bot") },
+                                    text = { Text("/newbot - создать нового бота") },
                                     onClick = {
                                         botMenuExpanded = false
                                         viewModel.sendMessage(chatId, activeAccount?.id ?: "", "/newbot", null, expiresIn)
                                     }
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("/description - bot description") },
+                                    text = { Text("/description - описание бота") },
                                     onClick = {
                                         botMenuExpanded = false
                                         viewModel.sendMessage(chatId, activeAccount?.id ?: "", "/description", null, expiresIn)
                                     }
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("/mybots - show a list of all bots") },
+                                    text = { Text("/mybots - список моих ботов") },
                                     onClick = {
                                         botMenuExpanded = false
                                         viewModel.sendMessage(chatId, activeAccount?.id ?: "", "/mybots", null, expiresIn)
@@ -1326,14 +1342,14 @@ fun ChatScreen(viewModel: AppViewModel, chatId: String, navController: NavContro
 
                     Box {
                         IconButton(onClick = { attachmentMenuExpanded = true }) {
-                            Icon(Icons.Filled.AttachFile, contentDescription = "Attach")
+                            Icon(Icons.Filled.AttachFile, contentDescription = "Прикрепить вложение")
                         }
                         DropdownMenu(
                             expanded = attachmentMenuExpanded,
                             onDismissRequest = { attachmentMenuExpanded = false }
                         ) {
                             DropdownMenuItem(
-                                text = { Text("Photo / Gallery") },
+                                text = { Text("Фото / Галерея") },
                                 onClick = { 
                                     attachmentMenuExpanded = false
                                     photoPickerLauncher.launch("image/*")
@@ -1341,7 +1357,7 @@ fun ChatScreen(viewModel: AppViewModel, chatId: String, navController: NavContro
                                 leadingIcon = { Icon(Icons.Filled.PhotoLibrary, contentDescription = null) }
                             )
                             DropdownMenuItem(
-                                text = { Text("Camera") },
+                                text = { Text("Камера") },
                                 onClick = { 
                                     attachmentMenuExpanded = false
                                     val photoDoc = org.json.JSONObject().apply {
@@ -1353,7 +1369,7 @@ fun ChatScreen(viewModel: AppViewModel, chatId: String, navController: NavContro
                                     viewModel.sendMessage(
                                         chatId = chatId,
                                         senderId = activeAccount?.id ?: "",
-                                        text = "📷 Captured photo",
+                                        text = "📷 Сделанное фото",
                                         audioPath = null,
                                         expiresIn = expiresIn,
                                         documentData = photoDoc
@@ -1362,7 +1378,7 @@ fun ChatScreen(viewModel: AppViewModel, chatId: String, navController: NavContro
                                 leadingIcon = { Icon(Icons.Filled.CameraAlt, contentDescription = null) }
                             )
                             DropdownMenuItem(
-                                text = { Text("File") },
+                                text = { Text("Файл") },
                                 onClick = { 
                                     attachmentMenuExpanded = false
                                     filePickerLauncher.launch(arrayOf("*/*"))
@@ -1370,15 +1386,15 @@ fun ChatScreen(viewModel: AppViewModel, chatId: String, navController: NavContro
                                 leadingIcon = { Icon(Icons.Filled.Description, contentDescription = null) }
                             )
                             DropdownMenuItem(
-                                text = { Text("Location") },
+                                text = { Text("Геолокация") },
                                 onClick = { 
                                     attachmentMenuExpanded = false
-                                    viewModel.sendMessage(chatId, activeAccount?.id ?: "", "📍 Location: 37.4221° N, 122.0841° W", null, expiresIn)
+                                    viewModel.sendMessage(chatId, activeAccount?.id ?: "", "📍 Местоположение: 37.4221° N, 122.0841° W", null, expiresIn)
                                 },
                                 leadingIcon = { Icon(Icons.Filled.LocationOn, contentDescription = null) }
                             )
                             DropdownMenuItem(
-                                text = { Text("Опрос (Poll)") },
+                                text = { Text("Опрос") },
                                 onClick = { 
                                     attachmentMenuExpanded = false
                                     showCreatePollDialog = true
@@ -1391,7 +1407,7 @@ fun ChatScreen(viewModel: AppViewModel, chatId: String, navController: NavContro
                     if (chat.isBot) {
                         var showBotMenu by remember { mutableStateOf(false) }
                         IconButton(onClick = { showBotMenu = true }) {
-                            Icon(Icons.Filled.Menu, contentDescription = "Bot Menu", tint = MaterialTheme.colorScheme.primary)
+                            Icon(Icons.Filled.Menu, contentDescription = "Меню команд бота", tint = MaterialTheme.colorScheme.primary)
                         }
                         if (showBotMenu) {
                             DropdownMenu(
@@ -1429,7 +1445,7 @@ fun ChatScreen(viewModel: AppViewModel, chatId: String, navController: NavContro
                     } else {
                         var showEmojiPicker by remember { mutableStateOf(false) }
                         IconButton(onClick = { showEmojiPicker = true }) {
-                            Text("😀", style = MaterialTheme.typography.titleLarge)
+                            Text("😀", style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { contentDescription = "Выбрать эмодзи и стикеры" })
                         }
                         if (showEmojiPicker) {
                             TelegramEmojiPickerBottomSheet(
@@ -1443,8 +1459,12 @@ fun ChatScreen(viewModel: AppViewModel, chatId: String, navController: NavContro
                         OutlinedTextField(
                             value = inputText,
                             onValueChange = { inputText = it },
-                            placeholder = { Text("Message...") },
-                            modifier = Modifier.weight(1f),
+                            placeholder = { Text("Сообщение...") },
+                            modifier = Modifier
+                                .weight(1f)
+                                .semantics {
+                                    contentDescription = "Поле ввода сообщения"
+                                },
                             colors = OutlinedTextFieldDefaults.colors(
                                 unfocusedBorderColor = Color.Transparent,
                                 focusedBorderColor = Color.Transparent
@@ -1497,6 +1517,7 @@ fun ChatScreen(viewModel: AppViewModel, chatId: String, navController: NavContro
                                             customQuoteText = null
                                         }
                                     },
+                                    onClickLabel = "Отправить сообщение",
                                     onLongClick = {
                                         com.example.analytics.AnalyticsTracker.logButtonClick(
                                             buttonName = "schedule_message",
@@ -1504,11 +1525,16 @@ fun ChatScreen(viewModel: AppViewModel, chatId: String, navController: NavContro
                                             metadata = mapOf("chat_id" to chatId)
                                         )
                                         showScheduleDialog = true
-                                    }
+                                    },
+                                    onLongClickLabel = "Запланировать отправку сообщения"
                                 )
+                                .semantics {
+                                    role = Role.Button
+                                    contentDescription = "Отправить сообщение. Долгое нажатие для отложенной отправки"
+                                }
                                 .padding(8.dp)
                         ) {
-                            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send", tint = MaterialTheme.colorScheme.primary)
+                            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                         }
                     } else {
                         com.example.ui.components.TelegramRecordActionButton(
@@ -4581,6 +4607,59 @@ fun MessageBubble(
         extractLightboxMediaItem(message, senderName, isMe)
     }
 
+    val messageAccessibilityDescription = remember(message, senderName, isMe, lightboxItem) {
+        buildString {
+            if (isMe) append("Вы: ") else if (!senderName.isNullOrBlank()) append("$senderName: ")
+            if (message.isPinned) append("Закрепленное сообщение. ")
+            if (message.isForwarded && !message.forwardOriginalSenderName.isNullOrBlank()) {
+                append("Переслано от ${message.forwardOriginalSenderName}. ")
+            }
+            if (message.replyToMessageText != null) {
+                append("В ответ на: ${message.replyToMessageText}. ")
+            }
+            if (lightboxItem != null) {
+                append("Фотография")
+                if (lightboxItem.caption.isNotBlank()) append(": ${lightboxItem.caption}")
+                append(". ")
+            } else if (message.documentData != null) {
+                try {
+                    val json = org.json.JSONObject(message.documentData)
+                    val type = json.optString("type")
+                    val name = json.optString("name", "Файл")
+                    val size = json.optLong("size", 0L)
+                    if (type == "voice_note") {
+                        append("Голосовое сообщение. ")
+                    } else if (type == "video_note") {
+                        append("Видеосообщение. ")
+                    } else {
+                        append("Файл $name, ${size / 1024} КБ. ")
+                    }
+                } catch (_: Exception) {
+                    append("Файл. ")
+                }
+            } else if (message.audioPath != null) {
+                append("Аудиосообщение: ${message.text}. ")
+            } else if (message.text.isNotBlank()) {
+                append("${message.text}. ")
+            }
+            if (message.reaction != null) {
+                append("Реакция: ${message.reaction}. ")
+            }
+            append("Время: ${formatTime(message.timestamp)}. ")
+            if (message.expiresAt != null) {
+                append("Исчезающее. ")
+            }
+            if (isMe) {
+                if (message.isRead) append("Прочитано.")
+                else if (message.isDelivered) append("Доставлено.")
+                else append("В очереди.")
+            }
+            if (message.isE2EEncrypted) {
+                append(" Сквозное шифрование.")
+            }
+        }
+    }
+
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = if (isMe) Alignment.End else Alignment.Start
@@ -4588,7 +4667,7 @@ fun MessageBubble(
         if (senderName != null) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 2.dp, start = if(isMe) 0.dp else 8.dp, end = if(isMe) 8.dp else 0.dp)) {
                 if (isBot) {
-                    Icon(Icons.Filled.SmartToy, contentDescription = "Bot", modifier = Modifier.size(12.dp), tint = MaterialTheme.colorScheme.primary)
+                    Icon(Icons.Filled.SmartToy, contentDescription = "Бот", modifier = Modifier.size(12.dp), tint = MaterialTheme.colorScheme.primary)
                     Spacer(Modifier.width(4.dp))
                 }
                 Column(horizontalAlignment = if (isMe) Alignment.End else Alignment.Start) {
@@ -4601,6 +4680,13 @@ fun MessageBubble(
         }
         Box(
             modifier = Modifier
+                .semantics(mergeDescendants = true) {
+                    contentDescription = messageAccessibilityDescription
+                    if (isSelectionMode) {
+                        selected = isSelected
+                        role = Role.Checkbox
+                    }
+                }
                 .background(
                     if (isMe) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
                     RoundedCornerShape(
