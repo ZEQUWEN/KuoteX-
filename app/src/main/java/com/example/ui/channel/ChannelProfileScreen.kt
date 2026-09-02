@@ -92,8 +92,41 @@ fun ChannelProfileScreen(
     var isSoundMuted by remember { mutableStateOf(false) }
     var deleteForAllSubscribers by remember { mutableStateOf(true) }
     var selectedMediaTab by remember { mutableIntStateOf(0) }
+    var showDedicatedGalleryDialog by remember { mutableStateOf(false) }
 
-    val mediaTabs = listOf("Медиа", "Файлы", "Голосовые", "Ссылки", "Опросы")
+    val messagesWithSender by viewModel.getMessages(chatId).collectAsStateWithLifecycle(initialValue = emptyList())
+    val channelMediaItems = remember(messagesWithSender, chatId, chat?.title) {
+        extractChannelSharedMedia(messagesWithSender, chatId, chat?.title ?: "Канал")
+    }
+    val channelDocs = remember(messagesWithSender, chatId, chat?.title) {
+        extractChannelDocuments(messagesWithSender, chatId, chat?.title ?: "Канал")
+    }
+    val channelLinks = remember(messagesWithSender, chatId, chat?.title) {
+        extractChannelLinks(messagesWithSender, chatId, chat?.title ?: "Канал")
+    }
+    val channelAudios = remember(messagesWithSender, chatId, chat?.title) {
+        extractChannelAudios(messagesWithSender, chatId, chat?.title ?: "Канал")
+    }
+
+    val mediaTabs = listOf(
+        "Медиа (${channelMediaItems.size})",
+        "Файлы (${channelDocs.size})",
+        "Голосовые (${channelAudios.size})",
+        "Ссылки (${channelLinks.size})",
+        "Опросы (${polls.size})"
+    )
+
+    if (showDedicatedGalleryDialog) {
+        ChannelDedicatedGalleryDialog(
+            chatId = chatId,
+            channelTitle = chat?.title ?: "Канал",
+            mediaItems = channelMediaItems,
+            documents = channelDocs,
+            links = channelLinks,
+            audios = channelAudios,
+            onDismiss = { showDedicatedGalleryDialog = false }
+        )
+    }
 
     // QR Code Dialog
     if (showQrDialog) {
@@ -805,30 +838,69 @@ fun ChannelProfileScreen(
             // Media Grid / Tab content
             when (selectedMediaTab) {
                 0 -> {
-                    // Photos / Videos Grid
+                    // Dedicated Photos / Videos Grid
                     item {
-                        Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(16.dp),
-                            color = Color(0xFF161E2E)
-                        ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    repeat(3) { i ->
-                                        AsyncImage(
-                                            model = "https://picsum.photos/seed/channel_${chatId}_photo_$i/300",
-                                            contentDescription = null,
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .height(95.dp)
-                                                .clip(RoundedCornerShape(8.dp))
-                                        )
-                                    }
-                                }
+                        ChannelMediaGallerySection(
+                            mediaItems = channelMediaItems,
+                            channelTitle = chat?.title ?: "Канал",
+                            onOpenFullGallery = { showDedicatedGalleryDialog = true }
+                        )
+                    }
+                }
+                1 -> {
+                    // Documents / Files
+                    if (channelDocs.isEmpty()) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(28.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("Файлов пока нет", color = Color.White.copy(alpha = 0.5f), fontSize = 14.sp)
                             }
+                        }
+                    } else {
+                        items(channelDocs) { doc ->
+                            ChannelDocumentItemRow(doc = doc)
+                        }
+                    }
+                }
+                2 -> {
+                    // Voice messages / Audios
+                    if (channelAudios.isEmpty()) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(28.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("Голосовых сообщений пока нет", color = Color.White.copy(alpha = 0.5f), fontSize = 14.sp)
+                            }
+                        }
+                    } else {
+                        items(channelAudios) { audio ->
+                            ChannelAudioItemRow(audio = audio)
+                        }
+                    }
+                }
+                3 -> {
+                    // Links
+                    if (channelLinks.isEmpty()) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(28.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("Ссылок пока нет", color = Color.White.copy(alpha = 0.5f), fontSize = 14.sp)
+                            }
+                        }
+                    } else {
+                        items(channelLinks) { link ->
+                            ChannelLinkItemRow(link = link)
                         }
                     }
                 }
@@ -836,25 +908,18 @@ fun ChannelProfileScreen(
                     // Polls
                     if (polls.isEmpty()) {
                         item {
-                            Box(modifier = Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
-                                Text("Опросов пока нет", color = Color.Gray)
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(28.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("Опросов пока нет", color = Color.White.copy(alpha = 0.5f), fontSize = 14.sp)
                             }
                         }
                     } else {
                         items(polls) { poll ->
                             PollMessageView(poll = poll, chatId = chatId)
-                        }
-                    }
-                }
-                else -> {
-                    item {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(24.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("Нет файлов в этой категории", color = Color.White.copy(alpha = 0.5f))
                         }
                     }
                 }
