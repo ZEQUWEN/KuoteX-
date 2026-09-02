@@ -69,8 +69,108 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * PinnedGiftsHeaderRow - Renders a horizontal carousel of exclusive pinned gifts
- * inside the profile header with smooth scrolling and dynamic clipping containers.
+ * PinnedGiftsHeader - Profile header Composable that uses a LazyRow to display PinnedGift objects.
+ * Encapsulated inside a Surface container with a rounded shape and a border to visually clip the gift textures.
+ */
+@Composable
+fun PinnedGiftsHeader(
+    gifts: List<PinnedGift>,
+    modifier: Modifier = Modifier,
+    onGiftClick: (PinnedGift) -> Unit = {},
+    onAddGiftClick: () -> Unit = {}
+) {
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .clip(RoundedCornerShape(22.dp)),
+        shape = RoundedCornerShape(22.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+        tonalElevation = 2.dp,
+        shadowElevation = 4.dp,
+        border = androidx.compose.foundation.BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 10.dp)
+        ) {
+            // Header title & count
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Filled.Stars,
+                        contentDescription = null,
+                        tint = Color(0xFFFFD54F),
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Закрепленные подарки",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Box(
+                        modifier = Modifier
+                            .background(Color(0xFFFFD54F).copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = "${gifts.size}/6",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFFFD54F)
+                        )
+                    }
+                }
+
+                Text(
+                    text = "Каталог",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.clickable { onAddGiftClick() }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // LazyRow displaying PinnedGift objects
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                items(gifts, key = { it.id }) { gift ->
+                    PinnedGiftCard(
+                        gift = gift,
+                        onClick = { onGiftClick(gift) }
+                    )
+                }
+
+                // Add/Pin Gift Slot (if < 6 gifts)
+                if (gifts.size < 6) {
+                    item {
+                        AddPinnedGiftSlot(onClick = onAddGiftClick)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * PinnedGiftsHeaderRow - Convenience wrapper delegating to PinnedGiftsHeader.
  */
 @Composable
 fun PinnedGiftsHeaderRow(
@@ -79,77 +179,12 @@ fun PinnedGiftsHeaderRow(
     onAddGiftClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp)
-    ) {
-        // Section Header
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Filled.Stars,
-                    contentDescription = null,
-                    tint = Color(0xFFFFD54F),
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = "Закрепленные подарки",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Box(
-                    modifier = Modifier
-                        .background(Color(0xFFFFD54F).copy(alpha = 0.2f), RoundedCornerShape(8.dp))
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                ) {
-                    Text(
-                        text = "${gifts.size}/6",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFFFFD54F)
-                    )
-                }
-            }
-
-            Text(
-                text = "Все подарки",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.clickable { onAddGiftClick() }
-            )
-        }
-
-        // Horizontal Carousel
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            items(gifts, key = { it.id }) { gift ->
-                PinnedGiftCard(
-                    gift = gift,
-                    onClick = { onGiftClick(gift) }
-                )
-            }
-
-            // Add/Pin Gift Slot (if < 6 gifts)
-            if (gifts.size < 6) {
-                item {
-                    AddPinnedGiftSlot(onClick = onAddGiftClick)
-                }
-            }
-        }
-    }
+    PinnedGiftsHeader(
+        gifts = gifts,
+        modifier = modifier,
+        onGiftClick = onGiftClick,
+        onAddGiftClick = onAddGiftClick
+    )
 }
 
 /**

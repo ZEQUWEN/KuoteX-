@@ -359,7 +359,7 @@ fun MyProfileScreen(viewModel: AppViewModel, navController: NavController) {
 
             // Pinned Exclusive Gifts in Profile Header (Phase 4)
             item {
-                com.example.ui.gifts.PinnedGiftsHeaderRow(
+                com.example.ui.gifts.PinnedGiftsHeader(
                     gifts = displayedPinnedGifts,
                     onGiftClick = { gift ->
                         selectedGiftForDetail = gift
