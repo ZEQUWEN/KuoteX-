@@ -111,6 +111,21 @@ fun MyProfileScreen(viewModel: AppViewModel, navController: NavController) {
     var showAvatarViewer by remember { mutableStateOf(false) }
     var showQrDialog by remember { mutableStateOf(false) }
     var showAddPublicationSheet by remember { mutableStateOf(false) }
+
+    val pinnedGiftsMap by com.example.data.ecosystem.KuoteXEcosystemFirestoreManager.pinnedGiftsMap.collectAsState()
+    val catalogGifts by com.example.data.ecosystem.KuoteXEcosystemFirestoreManager.catalogGifts.collectAsState()
+    val userPinnedDocs = pinnedGiftsMap[activeAccount.id] ?: emptyList()
+    val displayedPinnedGifts = remember(userPinnedDocs, catalogGifts) {
+        if (userPinnedDocs.isNotEmpty()) {
+            userPinnedDocs.map { doc ->
+                val catalog = catalogGifts.find { it.catalogGiftId == doc.catalogGiftId }
+                com.example.ui.gifts.PinnedGift.fromUserGift(doc, catalog)
+            }
+        } else {
+            com.example.ui.gifts.PinnedGift.samplePinnedGifts()
+        }
+    }
+    var selectedGiftForDetail by remember { mutableStateOf<com.example.ui.gifts.PinnedGift?>(null) }
     val avatars = remember(activeAccount.id) {
         listOf(
             activeAccount.profilePicUrl.takeIf { it.isNotEmpty() } ?: "https://picsum.photos/seed/${activeAccount.id}/800",
@@ -340,6 +355,19 @@ fun MyProfileScreen(viewModel: AppViewModel, navController: NavController) {
                         onClick = { navController.navigate("settings") }
                     )
                 }
+            }
+
+            // Pinned Exclusive Gifts in Profile Header (Phase 4)
+            item {
+                com.example.ui.gifts.PinnedGiftsHeaderRow(
+                    gifts = displayedPinnedGifts,
+                    onGiftClick = { gift ->
+                        selectedGiftForDetail = gift
+                    },
+                    onAddGiftClick = {
+                        android.widget.Toast.makeText(context, "Открытие каталога подарков KuoteX 🎁", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                )
             }
 
             // Info Card
@@ -584,6 +612,27 @@ fun MyProfileScreen(viewModel: AppViewModel, navController: NavController) {
         }
 
         // Dialogs
+        if (selectedGiftForDetail != null) {
+            com.example.ui.gifts.PinnedGiftDetailBottomSheet(
+                gift = selectedGiftForDetail,
+                onDismiss = { selectedGiftForDetail = null },
+                onUpgradeClick = { gift ->
+                    scope.launch {
+                        val result = com.example.data.ecosystem.KuoteXEcosystemFirestoreManager.upgradeUserGiftAtomic(
+                            userId = activeAccount.id,
+                            userGiftId = gift.id,
+                            upgradeCostStars = 50L
+                        )
+                        if (result.isSuccess) {
+                            android.widget.Toast.makeText(context, "Уровень подарка повышен! ⭐", android.widget.Toast.LENGTH_SHORT).show()
+                        } else {
+                            android.widget.Toast.makeText(context, "Ошибка повышения: ${result.exceptionOrNull()?.message}", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            )
+        }
+
         if (showAddPublicationSheet) {
             val pickMedia = androidx.activity.compose.rememberLauncherForActivityResult(
                 contract = androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia()

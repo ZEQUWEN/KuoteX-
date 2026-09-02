@@ -172,6 +172,7 @@ data class KuoteXUserGiftDoc(
  */
 enum class LedgerTransactionType(val value: String) {
     GIFT_PURCHASE("GIFT_PURCHASE"),
+    GIFT_UPGRADE("GIFT_UPGRADE"),
     VIP_SUBSCRIPTION("VIP_SUBSCRIPTION"),
     BALANCE_TOPUP("BALANCE_TOPUP"),
     CHANNEL_BOOST("CHANNEL_BOOST"),

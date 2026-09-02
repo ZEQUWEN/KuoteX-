@@ -126,6 +126,8 @@ dependencies {
   // implementation(libs.play.services.location)
   implementation(libs.retrofit)
   implementation("com.google.zxing:core:3.5.2")
+  implementation("androidx.recyclerview:recyclerview:1.3.2")
+  implementation("androidx.cardview:cardview:1.0.0")
   testImplementation(libs.androidx.compose.ui.test.junit4)
   testImplementation(libs.androidx.core)
   testImplementation(libs.androidx.junit)

@@ -533,6 +533,83 @@ object KuoteXEcosystemFirestoreManager {
     }
 
     /**
+     * ATOMIC TRANSACTION: Upgrade Pinned User Gift Level (Phase 4)
+     */
+    suspend fun upgradeUserGiftAtomic(
+        userId: String,
+        userGiftId: String,
+        upgradeCostStars: Long = 50L
+    ): Result<KuoteXUserGiftDoc> = withContext(Dispatchers.IO) {
+        val txId = "tx_gift_upg_${System.currentTimeMillis()}_${UUID.randomUUID().toString().take(8)}"
+        val now = System.currentTimeMillis()
+
+        try {
+            val updatedUserGift = firestore.runTransaction { transaction ->
+                val userRef = firestore.collection(COLLECTION_USERS).document(userId)
+                val giftRef = firestore.collection(COLLECTION_USER_GIFTS).document(userGiftId)
+                val ledgerRef = firestore.collection(COLLECTION_LEDGER_TX).document(txId)
+
+                val userSnap = transaction.get(userRef)
+                val giftSnap = transaction.get(giftRef)
+
+                val currentBalance = userSnap.getLong("balance") ?: (_currentUserState.value?.balance ?: 1000L)
+                if (currentBalance < upgradeCostStars) {
+                    throw InsufficientBalanceException("Insufficient Stars balance to upgrade gift ($currentBalance < $upgradeCostStars)")
+                }
+
+                val currentGift = giftSnap.toObject(KuoteXUserGiftDoc::class.java)
+                    ?: _pinnedGiftsMap.value[userId]?.find { it.userGiftId == userGiftId }
+                    ?: throw IllegalArgumentException("User gift $userGiftId not found")
+
+                val newLevel = (currentGift.upgradeLevel + 1).coerceAtMost(5)
+                val upgradedDoc = currentGift.copy(
+                    upgradeLevel = newLevel
+                )
+
+                transaction.update(userRef, "balance", currentBalance - upgradeCostStars)
+                transaction.set(giftRef, upgradedDoc, SetOptions.merge())
+
+                // Immutable Ledger
+                val ledgerDoc = KuoteXLedgerTxDoc(
+                    txId = txId,
+                    idempotencyKey = "upg_${userGiftId}_lvl${newLevel}_$now",
+                    type = LedgerTransactionType.GIFT_UPGRADE.value,
+                    fromUserId = userId,
+                    toUserId = "system_gift_vault",
+                    amount = upgradeCostStars,
+                    status = LedgerTransactionStatus.COMMITTED.value,
+                    metadata = mapOf("user_gift_id" to userGiftId, "new_level" to newLevel),
+                    createdAt = now
+                )
+                transaction.set(ledgerRef, ledgerDoc)
+
+                upgradedDoc
+            }.await()
+
+            // Update local state
+            _currentUserState.update { curr ->
+                curr?.let { it.copy(balance = (it.balance - upgradeCostStars).coerceAtLeast(0L)) }
+            }
+
+            _pinnedGiftsMap.update { currentMap ->
+                val list = currentMap[userId]?.toMutableList() ?: mutableListOf()
+                val idx = list.indexOfFirst { it.userGiftId == userGiftId }
+                if (idx >= 0) {
+                    list[idx] = updatedUserGift
+                } else {
+                    list.add(updatedUserGift)
+                }
+                currentMap + (userId to list)
+            }
+
+            Result.success(updatedUserGift)
+        } catch (e: Exception) {
+            Log.e(TAG, "Gift upgrade failed: ${e.message}", e)
+            Result.failure(e)
+        }
+    }
+
+    /**
      * ATOMIC TRANSACTION: Vote in Telegram-style channel/group poll
      */
     suspend fun voteInPollAtomic(
