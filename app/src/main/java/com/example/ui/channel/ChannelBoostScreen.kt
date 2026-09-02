@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.ui.AppViewModel
+import kotlinx.coroutines.launch
 
 /**
  * ChannelBoostScreen
@@ -66,6 +67,11 @@ fun ChannelBoostScreen(
     val currentBoosts = customization.boostCount
     val nextLevelTarget = customization.boostsRequiredForNextLevel
     val progress = (currentBoosts.toFloat() / nextLevelTarget.coerceAtLeast(1)).coerceIn(0f, 1f)
+
+    val coroutineScope = rememberCoroutineScope()
+    val ecosystemUser by com.example.data.ecosystem.KuoteXEcosystemFirestoreManager.currentUserState.collectAsState()
+    val hasPrivilege = ecosystemUser?.hasBoostPrivilege() ?: true
+    val availableVotes = ecosystemUser?.availableBoostVotes ?: 4
 
     val infiniteTransition = rememberInfiniteTransition(label = "boost_glow")
     val glowAlpha by infiniteTransition.animateFloat(
@@ -219,10 +225,51 @@ fun ChannelBoostScreen(
 
                         Spacer(Modifier.height(18.dp))
 
+                        // Available Votes Status Indicator
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 8.dp)
+                        ) {
+                            Icon(
+                                Icons.Filled.Stars,
+                                contentDescription = null,
+                                tint = if (hasPrivilege) Color(0xFFFFD54F) else Color.Gray,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = if (hasPrivilege) "Доступно буст-голосов: $availableVotes" else "Требуется подписка KuoteX VIP",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (hasPrivilege) Color(0xFFFFD54F) else Color.LightGray.copy(alpha = 0.8f),
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+
                         // Boost Button
                         Button(
                             onClick = {
+                                if (!hasPrivilege) {
+                                    Toast.makeText(
+                                        context,
+                                        "Буст доступен только пользователям с KuoteX VIP или Администраторам",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                    return@Button
+                                }
                                 val voted = ChannelCustomizationManager.toggleBoost(chatId)
+                                if (voted) {
+                                    coroutineScope.launch {
+                                        val userId = ecosystemUser?.userId ?: "me"
+                                        com.example.data.ecosystem.KuoteXEcosystemFirestoreManager.applyChannelBoostAtomic(
+                                            userId = userId,
+                                            channelId = chatId,
+                                            votesToApply = 1
+                                        )
+                                    }
+                                }
                                 Toast.makeText(
                                     context,
                                     if (voted) "Вы отдали голос за канал! ⭐" else "Голос отозван",
@@ -234,7 +281,7 @@ fun ChannelBoostScreen(
                                 .height(50.dp),
                             shape = RoundedCornerShape(14.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (customization.hasVotedBoost) Color(0xFF37474F) else Color(0xFFFF6D00)
+                                containerColor = if (!hasPrivilege) Color(0xFF263238) else if (customization.hasVotedBoost) Color(0xFF37474F) else Color(0xFFFF6D00)
                             )
                         ) {
                             Icon(
@@ -244,7 +291,7 @@ fun ChannelBoostScreen(
                             )
                             Spacer(Modifier.width(8.dp))
                             Text(
-                                text = if (customization.hasVotedBoost) "Вы проголосовали (Отозвать)" else "Проголосовать за канал",
+                                text = if (!hasPrivilege) "Нужен KuoteX VIP для буста" else if (customization.hasVotedBoost) "Вы проголосовали (Отозвать)" else "Проголосовать за канал",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 15.sp,
                                 color = Color.White

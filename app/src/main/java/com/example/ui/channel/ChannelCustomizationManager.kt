@@ -224,8 +224,8 @@ object ChannelCustomizationManager {
             val current = map[chatId] ?: ChannelCustomization(chatId = chatId)
             newVotedState = !current.hasVotedBoost
             val newCount = if (newVotedState) current.boostCount + 1 else (current.boostCount - 1).coerceAtLeast(0)
-            val newLevel = calculateLevel(newCount)
-            val reqNext = (newLevel + 1) * 10
+            val newLevel = com.example.data.ecosystem.KuoteXBoostProgression.calculateLevel(newCount)
+            val reqNext = com.example.data.ecosystem.KuoteXBoostProgression.nextLevelRequirement(newCount)
             val updated = current.copy(
                 hasVotedBoost = newVotedState,
                 boostCount = newCount,
