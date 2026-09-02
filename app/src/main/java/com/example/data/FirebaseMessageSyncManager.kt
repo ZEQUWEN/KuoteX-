@@ -232,7 +232,7 @@ object FirebaseMessageSyncManager {
     }
 
     /**
-     * Process bot triggers or conversational responses once the message has been pushed
+     * Process bot triggers if the recipient is a bot
      */
     private suspend fun processPostSyncReply(
         queued: QueuedMessage,
@@ -249,17 +249,6 @@ object FirebaseMessageSyncManager {
                 } catch (e: Exception) {}
             }
             BotService.handleMessage(botMessageText, chat, repository, signalProtocolManager)
-        } else {
-            val replyText = "Received (synced): ${queued.text}"
-            val reply = Message(
-                id = java.util.UUID.randomUUID().toString(),
-                chatId = chat.id,
-                senderId = "other_user",
-                text = signalProtocolManager.encryptMessage(replyText),
-                timestamp = System.currentTimeMillis(),
-                isDelivered = true
-            )
-            repository.insertMessageAndUpdateChat(reply, replyText, chat.title)
         }
     }
 }

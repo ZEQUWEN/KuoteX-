@@ -771,6 +771,12 @@ class AppViewModel(
         }
 
         viewModelScope.launch {
+            try {
+                repository.deleteSystemSyncMessages()
+            } catch (e: Exception) {
+                // Ignore
+            }
+
             // Periodic cleanup of expired messages
             launch {
                 while (true) {
@@ -826,32 +832,12 @@ class AppViewModel(
     fun syncMessages() {
         viewModelScope.launch {
             _isRefreshing.value = true
-            // Simulate network sync delay
-            delay(1500)
-            
-            // Simulate fetching recent messages from a remote API and caching them in Room
-            // This allows the app to display content even when the user is offline,
-            // leveraging the existing Room database configuration.
-            val currentChats = repository.allChats.firstOrNull() ?: emptyList()
-            for (chat in currentChats) {
-                // Generate a mock incoming message for each chat as if received while offline
-                if (chat.id == "other_user" || chat.isBot) continue
-                
-                val mockMessageText = "Synced recent message for ${chat.title}"
-                val sanitizedText = com.example.utils.MessageSanitizer.sanitize(mockMessageText)
-                val encryptedMsg = signalProtocolManager.encryptMessage(sanitizedText)
-                
-                val mockMsg = com.example.ui.Message(
-                    id = java.util.UUID.randomUUID().toString(),
-                    chatId = chat.id,
-                    senderId = "system_sync",
-                    text = encryptedMsg,
-                    timestamp = System.currentTimeMillis(),
-                    isDelivered = true
-                )
-                repository.insertMessageAndUpdateChat(mockMsg, sanitizedText, "System")
+            try {
+                // Silently sync any pending messages with Firebase and Firestore
+                com.example.data.FirebaseMessageSyncManager.syncAllCachedMessages(repository, null)
+            } catch (e: Exception) {
+                // Silent background sync
             }
-            
             _isRefreshing.value = false
         }
     }
@@ -1274,35 +1260,6 @@ class AppViewModel(
                             } catch (e: Exception) {}
                         }
                         BotService.handleMessage(botMessageText, chat, repository, signalProtocolManager)
-                    } else {
-                        kotlinx.coroutines.delay(1500)
-                        val replyText = "Got it: $sanitizedText"
-                        val reply = Message(
-                            id = java.util.UUID.randomUUID().toString(),
-                            chatId = chatId,
-                            senderId = "other_user",
-                            text = signalProtocolManager.encryptMessage(replyText),
-                            timestamp = System.currentTimeMillis(),
-                            isDelivered = true
-                        )
-                        repository.insertMessageAndUpdateChat(reply, replyText, chat.title)
-
-                        if (repository.currentActiveChatId != chatId) {
-                            val isMention = replyText.contains("@neo", ignoreCase = true) || replyText.contains("@")
-                            com.example.notifications.InAppNotificationManager.postNotification(
-                                com.example.notifications.TelegramBubbleNotification(
-                                    id = reply.id,
-                                    chatId = chatId,
-                                    senderId = "other_user",
-                                    senderName = chat.title,
-                                    chatTitle = if (chat.isGroup) chat.title else null,
-                                    text = replyText,
-                                    isMention = isMention,
-                                    isGroup = chat.isGroup
-                                ),
-                                currentActiveChatId = repository.currentActiveChatId
-                            )
-                        }
                     }
                 }
             }

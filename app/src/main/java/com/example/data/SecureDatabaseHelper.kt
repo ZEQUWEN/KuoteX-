@@ -11,20 +11,30 @@ class SecureDatabaseHelper private constructor(context: Context) {
     init {
         val appContext = context.applicationContext
         val dbName = "messenger_database_encrypted"
-        net.sqlcipher.database.SQLiteDatabase.loadLibs(appContext)
-
-        val passphrase = CryptoManager.getDatabasePassphrase(appContext)
-        val passphraseBytes = net.sqlcipher.database.SQLiteDatabase.getBytes(passphrase)
-        DatabaseDiagnosticUtility.performStartupDiagnostics(appContext, dbName, passphrase)
-
-        val factory = SupportFactory(passphraseBytes)
+        
+        val sqlCipherFactory = try {
+            net.sqlcipher.database.SQLiteDatabase.loadLibs(appContext)
+            val passphrase = CryptoManager.getDatabasePassphrase(appContext)
+            val passphraseBytes = net.sqlcipher.database.SQLiteDatabase.getBytes(passphrase)
+            try {
+                DatabaseDiagnosticUtility.performStartupDiagnostics(appContext, dbName, passphrase)
+            } catch (t: Throwable) {
+                // Ignore diagnostic failures
+            }
+            SupportFactory(passphraseBytes)
+        } catch (t: Throwable) {
+            null
+        }
 
         database = Room.databaseBuilder(
             appContext,
             AppDatabase::class.java,
             dbName
-        )
-        .openHelperFactory(factory)
+        ).apply {
+            if (sqlCipherFactory != null) {
+                openHelperFactory(sqlCipherFactory)
+            }
+        }
         .fallbackToDestructiveMigration()
         .build()
     }

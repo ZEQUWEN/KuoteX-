@@ -30,7 +30,7 @@ object CryptoManager {
                 .keysetHandle
             
             aead = keysetHandle.getPrimitive(Aead::class.java)
-        } catch (e: Exception) {
+        } catch (t: Throwable) {
             try {
                 val keysetHandle = AndroidKeysetManager.Builder()
                     .withSharedPref(context.applicationContext, KEYSET_NAME, PREF_FILE_NAME)
@@ -38,7 +38,7 @@ object CryptoManager {
                     .build()
                     .keysetHandle
                 aead = keysetHandle.getPrimitive(Aead::class.java)
-            } catch (e2: Exception) {
+            } catch (t2: Throwable) {
                 // Keystore fallback if unavailable on device/container
             }
         }

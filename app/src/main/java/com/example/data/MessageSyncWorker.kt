@@ -33,41 +33,12 @@ class MessageSyncWorker(
                 webSocketManager
             )
 
-            // Auto-push all Room-cached outgoing messages to Firebase
+            // Auto-push all Room-cached outgoing messages to Firebase silently
             val syncedCount = FirebaseMessageSyncManager.syncAllCachedMessages(
                 repository = repository,
                 signalProtocolManager = null
             )
-            Log.d("MessageSyncWorker", "Room-to-Firebase background sync completed. Pushed $syncedCount messages.")
-
-            // Fetch background missed messages
-            val chatDao = db.chatDao()
-            val messageDao = db.messageDao()
-            val currentChats = chatDao.getAllChats().first()
-            for (chat in currentChats) {
-                if (chat.isBot) continue
-                
-                val mockMessageText = "Background synced message"
-                val cryptoManager = com.example.data.CryptoManager
-                val encryptedText = cryptoManager.encrypt(mockMessageText)
-                
-                val mockMsg = com.example.ui.Message(
-                    id = java.util.UUID.randomUUID().toString(),
-                    chatId = chat.id,
-                    senderId = "system_sync",
-                    text = encryptedText,
-                    timestamp = System.currentTimeMillis(),
-                    isDelivered = true
-                )
-                
-                messageDao.insertMessage(mockMsg)
-                chatDao.insertChat(chat.copy(
-                    lastMessage = mockMessageText,
-                    lastMessageTimestamp = mockMsg.timestamp,
-                    lastMessageSenderName = "System",
-                    unreadCount = chat.unreadCount + 1
-                ))
-            }
+            Log.d("MessageSyncWorker", "Silent background sync completed. Pushed $syncedCount messages.")
             
             Result.success()
         } catch (e: Exception) {

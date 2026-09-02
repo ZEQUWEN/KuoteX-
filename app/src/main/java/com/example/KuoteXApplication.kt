@@ -67,6 +67,13 @@ class KuoteXApplication : Application(), ImageLoaderFactory {
         } catch (e: Exception) {
             Log.w("KuoteXApplication", "FirestoreUserRoleManager init: ${e.message}")
         }
+
+        // 4. Initialize Background Silent Firestore WorkManager Worker
+        try {
+            com.example.data.sync.FirestoreBackgroundSyncWorker.schedulePeriodicSync(this)
+        } catch (e: Exception) {
+            Log.w("KuoteXApplication", "FirestoreBackgroundSyncWorker schedule: ${e.message}")
+        }
     }
 
     private fun initFirebase() {

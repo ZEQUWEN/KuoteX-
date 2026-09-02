@@ -91,16 +91,16 @@ interface ChatDao {
 
 @Dao
 interface MessageDao {
-    @Query("SELECT * FROM messages WHERE chatId = :chatId ORDER BY timestamp ASC")
+    @Query("SELECT * FROM messages WHERE chatId = :chatId AND senderId != 'system_sync' ORDER BY timestamp ASC")
     fun getMessagesForChat(chatId: String): Flow<List<Message>>
 
-    @Query("SELECT * FROM (SELECT * FROM messages WHERE chatId = :chatId ORDER BY timestamp DESC LIMIT :limit) ORDER BY timestamp ASC")
+    @Query("SELECT * FROM (SELECT * FROM messages WHERE chatId = :chatId AND senderId != 'system_sync' ORDER BY timestamp DESC LIMIT :limit) ORDER BY timestamp ASC")
     fun getRecentMessagesForChat(chatId: String, limit: Int): Flow<List<Message>>
 
-    @Query("SELECT * FROM messages WHERE chatId = :chatId ORDER BY timestamp DESC LIMIT :limit OFFSET :offset")
+    @Query("SELECT * FROM messages WHERE chatId = :chatId AND senderId != 'system_sync' ORDER BY timestamp DESC LIMIT :limit OFFSET :offset")
     suspend fun getMessagesPage(chatId: String, limit: Int, offset: Int): List<Message>
 
-    @Query("SELECT COUNT(*) FROM messages WHERE chatId = :chatId")
+    @Query("SELECT COUNT(*) FROM messages WHERE chatId = :chatId AND senderId != 'system_sync'")
     fun getMessageCountForChat(chatId: String): Flow<Int>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -137,6 +137,9 @@ interface MessageDao {
 
     @Query("DELETE FROM messages WHERE chatId = :chatId")
     suspend fun clearHistory(chatId: String)
+
+    @Query("DELETE FROM messages WHERE senderId = 'system_sync'")
+    suspend fun deleteSystemSyncMessages()
 }
 
 @Dao
@@ -475,6 +478,7 @@ class MessengerRepository(
     suspend fun removeMember(chatId: String, userId: String) = groupMemberDao.removeMember(chatId, userId)
 
     suspend fun deleteMessage(messageId: String) = messageDao.deleteMessage(messageId)
+    suspend fun deleteSystemSyncMessages() = messageDao.deleteSystemSyncMessages()
     suspend fun deleteExpiredMessages(time: Long) = messageDao.deleteExpiredMessages(time)
     suspend fun clearHistory(chatId: String) = messageDao.clearHistory(chatId)
     suspend fun deleteChat(chatId: String) {
