@@ -29,6 +29,8 @@ interface AppContainer {
     val okHttpClient: OkHttpClient
     val webSocketManager: WebSocketManager
     val messengerRepository: MessengerRepository
+    val firestoreChatRepository: com.example.data.repository.FirestoreChatRepository
+    val chatDataRepository: com.example.data.repository.ChatDataRepository
     val messengerSandbox: MessengerSandbox
     val themeEngine: ThemeEngine
 
@@ -84,6 +86,28 @@ class DefaultAppContainer(override val context: Context) : AppContainer {
             db.queuedMessageDao(),
             sharedPreferences,
             webSocketManager
+        )
+    }
+
+    override val firestoreChatRepository: com.example.data.repository.FirestoreChatRepository by lazy {
+        val db = database
+        com.example.data.repository.FirestoreChatRepositoryImpl(
+            chatDao = db.chatDao(),
+            messageDao = db.messageDao(),
+            queuedMessageDao = db.queuedMessageDao(),
+            draftDao = db.draftDao()
+        )
+    }
+
+    override val chatDataRepository: com.example.data.repository.ChatDataRepository by lazy {
+        val db = database
+        com.example.data.repository.ChatDataRepositoryImpl(
+            chatDao = db.chatDao(),
+            messageDao = db.messageDao(),
+            draftDao = db.draftDao(),
+            contactDao = db.contactDao(),
+            groupMemberDao = db.groupMemberDao(),
+            firestoreChatRepo = firestoreChatRepository
         )
     }
 

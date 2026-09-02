@@ -74,6 +74,25 @@ interface ChatDataRepository {
     fun getContacts(): Flow<List<Contact>>
     suspend fun syncContacts(contacts: List<Contact>)
     
+    // Firestore real-time synchronization
+    fun observeRealtimeMessages(chatId: String): Flow<List<Message>>
+    fun observeRealtimeChats(userId: String): Flow<List<Chat>>
+    suspend fun getOrCreateDirectChat(currentUserId: String, otherUserId: String, currentUserName: String = "", otherUserName: String = ""): Result<Chat>
+    suspend fun sendDirectMessage(
+        chatId: String,
+        senderId: String,
+        receiverId: String,
+        text: String,
+        audioPath: String? = null,
+        mediaPath: String? = null,
+        mediaType: String? = null,
+        documentData: String? = null,
+        locationData: String? = null,
+        replyToMessageId: String? = null,
+        replyToMessageText: String? = null,
+        expiresIn: Long? = null
+    ): Result<Message>
+    suspend fun markChatAsRead(chatId: String, currentUserId: String, otherUserId: String)
     suspend fun syncMessagesWithFirestore(chatId: String)
 }
 
@@ -154,6 +173,7 @@ class ChatDataRepositoryImpl(
     private val draftDao: DraftDao,
     private val contactDao: ContactDao,
     private val groupMemberDao: GroupMemberDao,
+    private val firestoreChatRepo: FirestoreChatRepository? = null,
     private val messageSyncManager: FirebaseMessageSyncManager = FirebaseMessageSyncManager
 ) : ChatDataRepository {
 
@@ -180,7 +200,88 @@ class ChatDataRepositoryImpl(
     override fun getContacts(): Flow<List<Contact>> = contactDao.getAllContacts()
     override suspend fun syncContacts(contacts: List<Contact>) = contactDao.insertContacts(contacts)
 
+    override fun observeRealtimeMessages(chatId: String): Flow<List<Message>> {
+        return firestoreChatRepo?.observeMessagesRealtime(chatId) ?: messageDao.getMessagesForChat(chatId)
+    }
+
+    override fun observeRealtimeChats(userId: String): Flow<List<Chat>> {
+        return firestoreChatRepo?.observeUserChatsRealtime(userId) ?: chatDao.getAllChats()
+    }
+
+    override suspend fun getOrCreateDirectChat(
+        currentUserId: String,
+        otherUserId: String,
+        currentUserName: String,
+        otherUserName: String
+    ): Result<Chat> {
+        return firestoreChatRepo?.getOrCreateDirectChat(currentUserId, otherUserId, currentUserName, otherUserName)
+            ?: Result.success(
+                Chat(
+                    id = FirestoreChatRepositoryImpl.getDirectChatId(currentUserId, otherUserId),
+                    title = otherUserName.ifBlank { "User $otherUserId" },
+                    lastMessage = ""
+                )
+            )
+    }
+
+    override suspend fun sendDirectMessage(
+        chatId: String,
+        senderId: String,
+        receiverId: String,
+        text: String,
+        audioPath: String?,
+        mediaPath: String?,
+        mediaType: String?,
+        documentData: String?,
+        locationData: String?,
+        replyToMessageId: String?,
+        replyToMessageText: String?,
+        expiresIn: Long?
+    ): Result<Message> {
+        return firestoreChatRepo?.sendMessage(
+            chatId = chatId,
+            senderId = senderId,
+            receiverId = receiverId,
+            text = text,
+            audioPath = audioPath,
+            mediaPath = mediaPath,
+            mediaType = mediaType,
+            documentData = documentData,
+            locationData = locationData,
+            replyToMessageId = replyToMessageId,
+            replyToMessageText = replyToMessageText,
+            expiresIn = expiresIn
+        ) ?: run {
+            val msg = Message(
+                id = java.util.UUID.randomUUID().toString(),
+                chatId = chatId,
+                senderId = senderId,
+                text = text,
+                audioPath = audioPath,
+                mediaPath = mediaPath,
+                mediaType = mediaType,
+                documentData = documentData,
+                locationData = locationData,
+                replyToMessageId = replyToMessageId,
+                replyToMessageText = replyToMessageText,
+                timestamp = System.currentTimeMillis()
+            )
+            messageDao.insertMessage(msg)
+            Result.success(msg)
+        }
+    }
+
+    override suspend fun markChatAsRead(chatId: String, currentUserId: String, otherUserId: String) {
+        firestoreChatRepo?.markMessagesAsRead(chatId, currentUserId, otherUserId)
+            ?: run {
+                messageDao.markAsRead(chatId, currentUserId)
+                chatDao.getChatById(chatId)?.let {
+                    chatDao.insertChat(it.copy(unreadCount = 0))
+                }
+            }
+    }
+
     override suspend fun syncMessagesWithFirestore(chatId: String) {
-        // Delegate cloud sync to message sync worker / firestore engine
+        firestoreChatRepo?.syncPendingMessages()
     }
 }

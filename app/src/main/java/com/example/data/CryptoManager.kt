@@ -60,7 +60,7 @@ object CryptoManager {
         if (rawPassphrase.isNullOrEmpty()) {
             val randomBytes = ByteArray(32)
             java.security.SecureRandom().nextBytes(randomBytes)
-            rawPassphrase = Base64.encodeToString(randomBytes, Base64.NO_WRAP)
+            rawPassphrase = java.util.Base64.getEncoder().encodeToString(randomBytes)
             prefs.edit().putString(PREF_RAW_FALLBACK, rawPassphrase).apply()
         }
 
@@ -76,9 +76,8 @@ object CryptoManager {
         return try {
             val aeadPrimitive = aead ?: return plaintext
             val ciphertext = aeadPrimitive.encrypt(plaintext.toByteArray(StandardCharsets.UTF_8), null)
-            Base64.encodeToString(ciphertext, Base64.DEFAULT)
-        } catch (e: Exception) {
-            e.printStackTrace()
+            java.util.Base64.getEncoder().encodeToString(ciphertext)
+        } catch (t: Throwable) {
             plaintext
         }
     }
@@ -87,11 +86,14 @@ object CryptoManager {
         if (ciphertextBase64.isEmpty()) return ciphertextBase64
         return try {
             val aeadPrimitive = aead ?: return ciphertextBase64
-            val ciphertext = Base64.decode(ciphertextBase64, Base64.DEFAULT)
+            val ciphertext = try {
+                java.util.Base64.getDecoder().decode(ciphertextBase64)
+            } catch (e: Exception) {
+                return ciphertextBase64
+            }
             val plaintext = aeadPrimitive.decrypt(ciphertext, null)
             String(plaintext, StandardCharsets.UTF_8)
-        } catch (e: Exception) {
-            e.printStackTrace()
+        } catch (t: Throwable) {
             ciphertextBase64
         }
     }

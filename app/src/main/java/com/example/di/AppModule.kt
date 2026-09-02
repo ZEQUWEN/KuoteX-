@@ -15,6 +15,8 @@ import com.example.data.repository.AuthRepository
 import com.example.data.repository.AuthRepositoryImpl
 import com.example.data.repository.ChatDataRepository
 import com.example.data.repository.ChatDataRepositoryImpl
+import com.example.data.repository.FirestoreChatRepository
+import com.example.data.repository.FirestoreChatRepositoryImpl
 import com.example.data.repository.UserDataRepository
 import com.example.data.repository.UserDataRepositoryImpl
 import com.example.ui.auth.AuthViewModel
@@ -103,13 +105,22 @@ val repositoryModule = module {
     single<UserDataRepository> {
         UserDataRepositoryImpl(userDao = get(), contactDao = get())
     }
+    single<FirestoreChatRepository> {
+        FirestoreChatRepositoryImpl(
+            chatDao = get(),
+            messageDao = get(),
+            queuedMessageDao = get(),
+            draftDao = get()
+        )
+    }
     single<ChatDataRepository> {
         ChatDataRepositoryImpl(
             chatDao = get(),
             messageDao = get(),
             draftDao = get(),
             contactDao = get(),
-            groupMemberDao = get()
+            groupMemberDao = get(),
+            firestoreChatRepo = get()
         )
     }
 }
