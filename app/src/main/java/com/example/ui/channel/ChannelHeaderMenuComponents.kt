@@ -43,21 +43,365 @@ import androidx.compose.ui.window.DialogProperties
 
 enum class ChannelMenuPage {
     MAIN,
+    NOTIFICATIONS,
     AUTO_DELETE
 }
 
 /**
- * Dropdown Menu anchored to the top-right kebab (⋮) button in Channel Profile.
- * Features Telegram-style seamless animated transitions between Main Menu and Auto-Delete submenu.
+ * Dropdown Menu for Channel / Group / Direct CHAT Screen (top-right ⋮ button).
+ * In Channel Chat:
+ *  1. Уведомления › (Submenu: Назад, Выключить звук, Выключить на 30м, Выключить на 365д, Выключить на время..., Настроить, Выключить уведомления)
+ *  2. Сообщения каналу
+ *  3. Поиск
+ *  4. Голоса
+ *  5. Очистить историю
+ *  6. Покинуть канал / Покинуть группу
+ */
+@Composable
+fun ChannelChatDropdownMenu(
+    expanded: Boolean,
+    onDismissRequest: () -> Unit,
+    isAdmin: Boolean = false,
+    isChannel: Boolean = true,
+    isGroup: Boolean = false,
+    isMuted: Boolean = false,
+    isSoundMuted: Boolean = false,
+    channelTitle: String,
+    onToggleMute: ((Boolean) -> Unit)? = null,
+    onToggleSoundMute: (() -> Unit)? = null,
+    onMuteForDuration: ((String) -> Unit)? = null,
+    onOpenCustomNotificationSettings: (() -> Unit)? = null,
+    onSearch: (() -> Unit)? = null,
+    onViewDiscussion: (() -> Unit)? = null,
+    onOpenBoosts: (() -> Unit)? = null,
+    onClearHistory: (() -> Unit)? = null,
+    onReport: (() -> Unit)? = null,
+    onLeaveChannel: (() -> Unit)? = null,
+    onDeleteChannel: (() -> Unit)? = null
+) {
+    var currentPage by remember { mutableStateOf(ChannelMenuPage.MAIN) }
+
+    LaunchedEffect(expanded) {
+        if (!expanded) {
+            currentPage = ChannelMenuPage.MAIN
+        }
+    }
+
+    DropdownMenu(
+        expanded = expanded,
+        onDismissRequest = onDismissRequest,
+        offset = DpOffset(x = 0.dp, y = 4.dp),
+        modifier = Modifier
+            .width(250.dp)
+            .background(Color(0xFF212D3B), RoundedCornerShape(14.dp))
+            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(14.dp)),
+        containerColor = Color(0xFF212D3B),
+        shape = RoundedCornerShape(14.dp),
+        shadowElevation = 12.dp
+    ) {
+        AnimatedContent(
+            targetState = currentPage,
+            transitionSpec = {
+                if (targetState == ChannelMenuPage.NOTIFICATIONS) {
+                    (slideInHorizontally(animationSpec = tween(220)) { it } + fadeIn(animationSpec = tween(220)))
+                        .togetherWith(slideOutHorizontally(animationSpec = tween(200)) { -it } + fadeOut(animationSpec = tween(180)))
+                } else {
+                    (slideInHorizontally(animationSpec = tween(220)) { -it } + fadeIn(animationSpec = tween(220)))
+                        .togetherWith(slideOutHorizontally(animationSpec = tween(200)) { it } + fadeOut(animationSpec = tween(180)))
+                }
+            },
+            label = "ChannelChatMenuTransition"
+        ) { page ->
+            when (page) {
+                ChannelMenuPage.MAIN -> {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp)
+                    ) {
+                        // 1. Уведомления (Notifications) -> Slides into submenu
+                        TelegramMenuRow(
+                            icon = if (isMuted) Icons.Outlined.NotificationsOff else Icons.Filled.VolumeUp,
+                            iconTint = if (isMuted) Color(0xFFFF5252) else Color.White.copy(alpha = 0.85f),
+                            title = if (isMuted) "Вкл. уведомления" else "Уведомления",
+                            hasSubmenu = true,
+                            onClick = {
+                                currentPage = ChannelMenuPage.NOTIFICATIONS
+                            }
+                        )
+
+                        if (isChannel) {
+                            // 2. Сообщения каналу
+                            if (onViewDiscussion != null) {
+                                TelegramMenuRow(
+                                    icon = Icons.Outlined.ChatBubbleOutline,
+                                    title = "Сообщения каналу",
+                                    onClick = {
+                                        onDismissRequest()
+                                        onViewDiscussion()
+                                    }
+                                )
+                            }
+
+                            // 3. Поиск
+                            if (onSearch != null) {
+                                TelegramMenuRow(
+                                    icon = Icons.Outlined.Search,
+                                    title = "Поиск",
+                                    onClick = {
+                                        onDismissRequest()
+                                        onSearch()
+                                    }
+                                )
+                            }
+
+                            // 4. Голоса
+                            if (onOpenBoosts != null) {
+                                TelegramMenuRow(
+                                    icon = Icons.Filled.ElectricBolt,
+                                    iconTint = Color(0xFFFFD54F),
+                                    title = "Голоса",
+                                    onClick = {
+                                        onDismissRequest()
+                                        onOpenBoosts()
+                                    }
+                                )
+                            }
+
+                            // 5. Очистить историю
+                            if (onClearHistory != null) {
+                                TelegramMenuRow(
+                                    icon = Icons.Outlined.CleaningServices,
+                                    title = "Очистить историю",
+                                    onClick = {
+                                        onDismissRequest()
+                                        onClearHistory()
+                                    }
+                                )
+                            }
+
+                            // 6. Покинуть канал
+                            if (onLeaveChannel != null) {
+                                TelegramMenuRow(
+                                    icon = Icons.AutoMirrored.Filled.ExitToApp,
+                                    title = "Покинуть канал",
+                                    textColor = Color(0xFFFF5252),
+                                    iconTint = Color(0xFFFF5252),
+                                    onClick = {
+                                        onDismissRequest()
+                                        onLeaveChannel()
+                                    }
+                                )
+                            }
+                        } else if (isGroup) {
+                            // Group Chat Menu
+                            if (onSearch != null) {
+                                TelegramMenuRow(
+                                    icon = Icons.Outlined.Search,
+                                    title = "Поиск",
+                                    onClick = {
+                                        onDismissRequest()
+                                        onSearch()
+                                    }
+                                )
+                            }
+
+                            if (onReport != null) {
+                                TelegramMenuRow(
+                                    icon = Icons.Outlined.Info,
+                                    title = "Пожаловаться",
+                                    onClick = {
+                                        onDismissRequest()
+                                        onReport()
+                                    }
+                                )
+                            }
+
+                            if (onClearHistory != null) {
+                                TelegramMenuRow(
+                                    icon = Icons.Outlined.CleaningServices,
+                                    title = "Очистить историю",
+                                    onClick = {
+                                        onDismissRequest()
+                                        onClearHistory()
+                                    }
+                                )
+                            }
+
+                            if (onLeaveChannel != null) {
+                                TelegramMenuRow(
+                                    icon = Icons.AutoMirrored.Filled.ExitToApp,
+                                    title = "Покинуть беседу",
+                                    textColor = Color(0xFFFF5252),
+                                    iconTint = Color(0xFFFF5252),
+                                    onClick = {
+                                        onDismissRequest()
+                                        onLeaveChannel()
+                                    }
+                                )
+                            }
+                        } else {
+                            // Direct Chat Menu
+                            if (onSearch != null) {
+                                TelegramMenuRow(
+                                    icon = Icons.Outlined.Search,
+                                    title = "Поиск",
+                                    onClick = {
+                                        onDismissRequest()
+                                        onSearch()
+                                    }
+                                )
+                            }
+
+                            if (onClearHistory != null) {
+                                TelegramMenuRow(
+                                    icon = Icons.Outlined.CleaningServices,
+                                    title = "Очистить историю",
+                                    onClick = {
+                                        onDismissRequest()
+                                        onClearHistory()
+                                    }
+                                )
+                            }
+
+                            if (onLeaveChannel != null) {
+                                TelegramMenuRow(
+                                    icon = Icons.Outlined.Block,
+                                    title = "Заблокировать",
+                                    textColor = Color(0xFFFF5252),
+                                    iconTint = Color(0xFFFF5252),
+                                    onClick = {
+                                        onDismissRequest()
+                                        onLeaveChannel()
+                                    }
+                                )
+                            }
+
+                            if (onDeleteChannel != null) {
+                                TelegramMenuRow(
+                                    icon = Icons.Outlined.Delete,
+                                    title = "Удалить чат",
+                                    textColor = Color(0xFFFF5252),
+                                    iconTint = Color(0xFFFF5252),
+                                    onClick = {
+                                        onDismissRequest()
+                                        onDeleteChannel()
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                ChannelMenuPage.NOTIFICATIONS -> {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp)
+                    ) {
+                        // Назад
+                        TelegramMenuRow(
+                            icon = Icons.AutoMirrored.Filled.ArrowBack,
+                            title = "Назад",
+                            onClick = {
+                                currentPage = ChannelMenuPage.MAIN
+                            }
+                        )
+
+                        // Выключить звук / Включить звук
+                        TelegramMenuRow(
+                            icon = if (isSoundMuted) Icons.Outlined.VolumeUp else Icons.Outlined.MusicOff,
+                            title = if (isSoundMuted) "Включить звук" else "Выключить звук",
+                            onClick = {
+                                onDismissRequest()
+                                onToggleSoundMute?.invoke()
+                            }
+                        )
+
+                        // Выключить на 30м
+                        TelegramMenuRow(
+                            badgeText = "30",
+                            title = "Выключить на 30м",
+                            onClick = {
+                                onDismissRequest()
+                                onMuteForDuration?.invoke("30м")
+                            }
+                        )
+
+                        // Выключить на 365д
+                        TelegramMenuRow(
+                            badgeText = "1г",
+                            title = "Выключить на 365д",
+                            onClick = {
+                                onDismissRequest()
+                                onMuteForDuration?.invoke("365д")
+                            }
+                        )
+
+                        // Выключить на время...
+                        TelegramMenuRow(
+                            icon = Icons.Outlined.Alarm,
+                            title = "Выключить на время...",
+                            onClick = {
+                                onDismissRequest()
+                                onMuteForDuration?.invoke("custom")
+                            }
+                        )
+
+                        // Настроить
+                        TelegramMenuRow(
+                            icon = Icons.Outlined.Tune,
+                            title = "Настроить",
+                            onClick = {
+                                onDismissRequest()
+                                onOpenCustomNotificationSettings?.invoke()
+                            }
+                        )
+
+                        // Выключить уведомления / Включить уведомления
+                        TelegramMenuRow(
+                            icon = if (isMuted) Icons.Outlined.NotificationsActive else Icons.Outlined.NotificationsOff,
+                            title = if (isMuted) "Включить уведомления" else "Выключить уведомления",
+                            textColor = if (isMuted) Color(0xFF5EABEB) else Color(0xFFFF5252),
+                            iconTint = if (isMuted) Color(0xFF5EABEB) else Color(0xFFFF5252),
+                            onClick = {
+                                onDismissRequest()
+                                onToggleMute?.invoke(!isMuted)
+                            }
+                        )
+                    }
+                }
+
+                ChannelMenuPage.AUTO_DELETE -> {
+                    // Not used in chat menu
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Dropdown Menu anchored to the top-right kebab (⋮) button in Channel Profile Screen.
+ * Exactly matches Telegram Channel Profile Screen:
+ *  1. Автоудаление › (Submenu: 1 день, 7 дней, 1 месяц, Настроить, Отключить)
+ *  2. Начать трансляцию
+ *  3. Статистика
+ *  4. Архив историй
+ *  5. Поделиться
+ *  6. Отправить подарок
+ *  7. Просмотреть обсуждение
+ *  8. Создать ярлык
+ *  9. Покинуть канал
+ * 10. Удалить канал (if admin)
  */
 @Composable
 fun ChannelProfileDropdownMenu(
     expanded: Boolean,
     onDismissRequest: () -> Unit,
-    isAdmin: Boolean,
-    isChannel: Boolean,
+    isAdmin: Boolean = false,
+    isChannel: Boolean = true,
     channelTitle: String,
-    currentAutoDeletePeriod: String?,
+    currentAutoDeletePeriod: String? = null,
     onAutoDeleteSelected: (String?) -> Unit,
     onOpenAutoDeleteCustomWheel: () -> Unit,
     onStartLiveStream: () -> Unit,
@@ -72,7 +416,6 @@ fun ChannelProfileDropdownMenu(
 ) {
     var currentPage by remember { mutableStateOf(ChannelMenuPage.MAIN) }
 
-    // Reset page to MAIN whenever menu is closed
     LaunchedEffect(expanded) {
         if (!expanded) {
             currentPage = ChannelMenuPage.MAIN
@@ -85,10 +428,10 @@ fun ChannelProfileDropdownMenu(
         offset = DpOffset(x = 0.dp, y = 4.dp),
         modifier = Modifier
             .width(260.dp)
-            .background(Color(0xFF222631), RoundedCornerShape(16.dp))
-            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(16.dp)),
-        containerColor = Color(0xFF222631),
-        shape = RoundedCornerShape(16.dp),
+            .background(Color(0xFF212D3B), RoundedCornerShape(14.dp))
+            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(14.dp)),
+        containerColor = Color(0xFF212D3B),
+        shape = RoundedCornerShape(14.dp),
         shadowElevation = 12.dp
     ) {
         AnimatedContent(
@@ -102,7 +445,7 @@ fun ChannelProfileDropdownMenu(
                         .togetherWith(slideOutHorizontally(animationSpec = tween(200)) { it } + fadeOut(animationSpec = tween(180)))
                 }
             },
-            label = "ChannelMenuTransition"
+            label = "ChannelProfileMenuTransition"
         ) { page ->
             when (page) {
                 ChannelMenuPage.MAIN -> {
@@ -111,7 +454,7 @@ fun ChannelProfileDropdownMenu(
                             .fillMaxWidth()
                             .padding(vertical = 4.dp)
                     ) {
-                        // 1. Автоудаление
+                        // 1. Автоудаление (Submenu)
                         TelegramMenuRow(
                             icon = Icons.Outlined.AccessTime,
                             title = "Автоудаление",
@@ -195,13 +538,15 @@ fun ChannelProfileDropdownMenu(
                         TelegramMenuRow(
                             icon = Icons.AutoMirrored.Filled.ExitToApp,
                             title = if (isChannel) "Покинуть канал" else "Покинуть группу",
+                            textColor = Color(0xFFFF5252),
+                            iconTint = Color(0xFFFF5252),
                             onClick = {
                                 onDismissRequest()
                                 onLeaveChannel()
                             }
                         )
 
-                        // 10. Удалить канал (if admin / owner)
+                        // 10. Удалить канал
                         if (isAdmin) {
                             TelegramMenuRow(
                                 icon = Icons.Outlined.Delete,
@@ -217,13 +562,17 @@ fun ChannelProfileDropdownMenu(
                     }
                 }
 
+                ChannelMenuPage.NOTIFICATIONS -> {
+                    // Not in profile menu
+                }
+
                 ChannelMenuPage.AUTO_DELETE -> {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 4.dp)
                     ) {
-                        // Back to Main Menu
+                        // Назад
                         TelegramMenuRow(
                             icon = Icons.AutoMirrored.Filled.ArrowBack,
                             title = "Назад",
@@ -244,7 +593,7 @@ fun ChannelProfileDropdownMenu(
 
                         // 7 дней
                         TelegramMenuRow(
-                            badgeText = "1W",
+                            badgeText = "7д",
                             title = "7 дней",
                             onClick = {
                                 onDismissRequest()
@@ -254,7 +603,7 @@ fun ChannelProfileDropdownMenu(
 
                         // 1 месяц
                         TelegramMenuRow(
-                            badgeText = "1M",
+                            badgeText = "1м",
                             title = "1 месяц",
                             onClick = {
                                 onDismissRequest()
@@ -369,6 +718,189 @@ private fun TelegramMenuRow(
             )
         }
     }
+}
+
+/**
+ * Telegram Clear History Dialog ("Очистить историю")
+ * Styled exactly like Telegram modal confirmation dialog.
+ */
+@Composable
+fun TelegramClearHistoryDialog(
+    channelTitle: String,
+    onDismissRequest: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismissRequest,
+        containerColor = Color(0xFF212D3B),
+        shape = RoundedCornerShape(18.dp),
+        title = {
+            Text(
+                text = "Очистить историю",
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp
+            )
+        },
+        text = {
+            Text(
+                text = "Очистить историю канала $channelTitle 📱?",
+                color = Color.White.copy(alpha = 0.85f),
+                fontSize = 15.sp,
+                lineHeight = 20.sp
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    onConfirm()
+                    onDismissRequest()
+                }
+            ) {
+                Text(
+                    text = "Удалить",
+                    color = Color(0xFFFF5252),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismissRequest) {
+                Text(
+                    text = "Отмена",
+                    color = Color(0xFF5EABEB),
+                    fontSize = 15.sp
+                )
+            }
+        }
+    )
+}
+
+/**
+ * Telegram Leave Discussion / Chat Dialog ("Покинуть беседу")
+ */
+@Composable
+fun TelegramLeaveDiscussionDialog(
+    chatTitle: String,
+    isChannel: Boolean = false,
+    onDismissRequest: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismissRequest,
+        containerColor = Color(0xFF212D3B),
+        shape = RoundedCornerShape(18.dp),
+        title = {
+            Text(
+                text = if (isChannel) "Покинуть канал" else "Покинуть беседу",
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp
+            )
+        },
+        text = {
+            Text(
+                text = if (isChannel) {
+                    "Вы точно хотите покинуть канал $chatTitle 📱?"
+                } else {
+                    "Вы точно хотите покинуть Сообщения $chatTitle 📱?"
+                },
+                color = Color.White.copy(alpha = 0.85f),
+                fontSize = 15.sp,
+                lineHeight = 20.sp
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    onConfirm()
+                    onDismissRequest()
+                }
+            ) {
+                Text(
+                    text = if (isChannel) "Покинуть канал" else "Покинуть беседу",
+                    color = Color(0xFFFF5252),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismissRequest) {
+                Text(
+                    text = "Отмена",
+                    color = Color(0xFF5EABEB),
+                    fontSize = 15.sp
+                )
+            }
+        }
+    )
+}
+
+/**
+ * Telegram Custom Mute Duration Picker Dialog ("Выключить звук на время...")
+ */
+@Composable
+fun TelegramMuteDurationPickerDialog(
+    onDismissRequest: () -> Unit,
+    onDurationSelected: (String) -> Unit
+) {
+    val durations = listOf(
+        "1 час" to "1ч",
+        "8 часов" to "8ч",
+        "1 день" to "1д",
+        "7 дней" to "7д",
+        "Навсегда" to "навсегда"
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismissRequest,
+        containerColor = Color(0xFF212D3B),
+        shape = RoundedCornerShape(18.dp),
+        title = {
+            Text(
+                text = "Выключить звук на...",
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp
+            )
+        },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                durations.forEach { (label, value) ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                onDurationSelected(value)
+                                onDismissRequest()
+                            }
+                            .padding(vertical = 12.dp, horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Alarm,
+                            contentDescription = null,
+                            tint = Color.White.copy(alpha = 0.7f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Text(
+                            text = label,
+                            color = Color.White,
+                            fontSize = 15.sp
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismissRequest) {
+                Text("Отмена", color = Color(0xFF5EABEB))
+            }
+        }
+    )
 }
 
 /**

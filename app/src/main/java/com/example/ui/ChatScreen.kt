@@ -669,325 +669,68 @@ fun ChatScreen(viewModel: AppViewModel, chatId: String, navController: NavContro
                     
                     Box {
                         var expanded by remember { mutableStateOf(false) }
-                        IconButton(onClick = { 
-                            expanded = true 
-                            showNotificationSubmenu = false
-                        }) {
+                        IconButton(onClick = { expanded = true }) {
                             Icon(Icons.Filled.MoreVert, contentDescription = "Меню опций")
                         }
-                        DropdownMenu(
+                        com.example.ui.channel.ChannelChatDropdownMenu(
                             expanded = expanded,
-                            onDismissRequest = { 
-                                expanded = false 
-                                showNotificationSubmenu = false
+                            onDismissRequest = { expanded = false },
+                            isAdmin = true,
+                            isChannel = chat.isChannel,
+                            isGroup = chat.isGroup,
+                            isMuted = chat.isMuted,
+                            isSoundMuted = isSoundMuted,
+                            channelTitle = chat.title,
+                            onToggleMute = { muted ->
+                                viewModel.toggleMute(chatId, muted)
+                                android.widget.Toast.makeText(
+                                    context,
+                                    if (muted) "Уведомления выключены." else "Уведомления включены.",
+                                    android.widget.Toast.LENGTH_SHORT
+                                ).show()
                             },
-                            modifier = Modifier.widthIn(min = 230.dp)
-                        ) {
-                            if (!showNotificationSubmenu) {
-                                // 1. Уведомления (Notifications)
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            text = if (chat.isMuted) "Вкл. уведомления" else "Уведомления",
-                                            style = MaterialTheme.typography.bodyMedium
-                                        )
-                                    },
-                                    leadingIcon = {
-                                        Icon(
-                                            imageVector = if (chat.isMuted) Icons.Filled.NotificationsOff else Icons.AutoMirrored.Filled.VolumeUp,
-                                            contentDescription = null,
-                                            tint = if (chat.isMuted) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    },
-                                    trailingIcon = {
-                                        Icon(
-                                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    },
-                                    onClick = {
-                                        showNotificationSubmenu = true
-                                    }
-                                )
-
-                                if (chat.isChannel) {
-                                    // 2. Сообщения каналу (Telegram Channel Messages)
-                                    DropdownMenuItem(
-                                        text = { Text("Сообщения каналу") },
-                                        leadingIcon = {
-                                            Icon(
-                                                imageVector = Icons.Outlined.ChatBubbleOutline,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        },
-                                        onClick = {
-                                            expanded = false
-                                            showChannelMessagesDialog = true
-                                        }
-                                    )
-
-                                    // 3. Поиск (Search)
-                                    DropdownMenuItem(
-                                        text = { Text("Поиск") },
-                                        leadingIcon = {
-                                            Icon(
-                                                imageVector = Icons.Filled.Search,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        },
-                                        onClick = {
-                                            expanded = false
-                                            isSearchMode = true
-                                        }
-                                    )
-
-                                    // 4. Голоса (Boosts / Voices)
-                                    DropdownMenuItem(
-                                        text = { Text("Голоса") },
-                                        leadingIcon = {
-                                            Icon(
-                                                imageVector = Icons.Filled.FlashOn,
-                                                contentDescription = null,
-                                                tint = Color(0xFFFFD54F),
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        },
-                                        onClick = {
-                                            expanded = false
-                                            navController.navigate("channel_boost/${chat.id}")
-                                        }
-                                    )
-
-                                    // 5. Очистить историю (Clear history)
-                                    DropdownMenuItem(
-                                        text = { Text("Очистить историю") },
-                                        leadingIcon = {
-                                            Icon(
-                                                imageVector = Icons.Filled.CleaningServices,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        },
-                                        onClick = {
-                                            expanded = false
-                                            showClearHistoryDialog = true
-                                        }
-                                    )
-
-                                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-
-                                    // Покинуть канал
-                                    DropdownMenuItem(
-                                        text = { Text("Покинуть канал", color = MaterialTheme.colorScheme.error) },
-                                        leadingIcon = {
-                                            Icon(
-                                                imageVector = Icons.AutoMirrored.Filled.ExitToApp,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.error,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        },
-                                        onClick = {
-                                            expanded = false
-                                            showLeaveChannelDialog = true
-                                        }
-                                    )
-                                } else if (chat.isGroup) {
-                                    // 2. Поиск (Search)
-                                    DropdownMenuItem(
-                                        text = { Text("Поиск") },
-                                        leadingIcon = {
-                                            Icon(
-                                                imageVector = Icons.Filled.Search,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        },
-                                        onClick = {
-                                            expanded = false
-                                            isSearchMode = true
-                                        }
-                                    )
-
-                                    // 3. Очистить историю
-                                    DropdownMenuItem(
-                                        text = { Text("Очистить историю") },
-                                        leadingIcon = {
-                                            Icon(
-                                                imageVector = Icons.Filled.CleaningServices,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        },
-                                        onClick = {
-                                            expanded = false
-                                            showClearHistoryDialog = true
-                                        }
-                                    )
-
-                                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-
-                                    // Покинуть группу
-                                    DropdownMenuItem(
-                                        text = { Text("Покинуть группу", color = MaterialTheme.colorScheme.error) },
-                                        leadingIcon = {
-                                            Icon(
-                                                imageVector = Icons.AutoMirrored.Filled.ExitToApp,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.error,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        },
-                                        onClick = {
-                                            expanded = false
-                                            showLeaveChannelDialog = true
-                                        }
-                                    )
+                            onToggleSoundMute = {
+                                isSoundMuted = !isSoundMuted
+                                android.widget.Toast.makeText(
+                                    context,
+                                    if (isSoundMuted) "Уведомления будут беззвучными." else "Уведомления будут со звуком.",
+                                    android.widget.Toast.LENGTH_SHORT
+                                ).show()
+                            },
+                            onMuteForDuration = { duration ->
+                                if (duration == "custom") {
+                                    showMuteDurationPicker = true
                                 } else {
-                                    // Direct Chat
-                                    DropdownMenuItem(
-                                        text = { Text("Поиск") },
-                                        leadingIcon = {
-                                            Icon(
-                                                imageVector = Icons.Filled.Search,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        },
-                                        onClick = {
-                                            expanded = false
-                                            isSearchMode = true
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Очистить историю") },
-                                        leadingIcon = {
-                                            Icon(
-                                                imageVector = Icons.Filled.CleaningServices,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        },
-                                        onClick = {
-                                            expanded = false
-                                            showClearHistoryDialog = true
-                                        }
-                                    )
-
-                                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-
-                                    DropdownMenuItem(
-                                        text = { Text("Заблокировать", color = MaterialTheme.colorScheme.error) },
-                                        leadingIcon = {
-                                            Icon(
-                                                imageVector = Icons.Filled.Block,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.error,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        },
-                                        onClick = {
-                                            expanded = false
-                                            viewModel.blockUser(chatId)
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Удалить чат", color = MaterialTheme.colorScheme.error) },
-                                        leadingIcon = {
-                                            Icon(
-                                                imageVector = Icons.Filled.Delete,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.error,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        },
-                                        onClick = {
-                                            expanded = false
-                                            viewModel.deleteChat(chatId)
-                                            navController.popBackStack()
-                                        }
-                                    )
+                                    viewModel.toggleMute(chatId, true)
+                                    android.widget.Toast.makeText(context, "Уведомления выключены на $duration.", android.widget.Toast.LENGTH_SHORT).show()
                                 }
-                            } else {
-                                // Notification Submenu
-                                DropdownMenuItem(
-                                    text = { Text("Назад") },
-                                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, modifier = Modifier.size(20.dp)) },
-                                    onClick = { showNotificationSubmenu = false }
-                                )
-                                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                                if (chat.isMuted) {
-                                    DropdownMenuItem(
-                                        text = { Text("Включить уведомления") },
-                                        leadingIcon = { Icon(Icons.Filled.Notifications, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp)) },
-                                        onClick = {
-                                            viewModel.toggleMute(chatId, false)
-                                            expanded = false
-                                            showNotificationSubmenu = false
-                                            android.widget.Toast.makeText(context, "Уведомления включены.", android.widget.Toast.LENGTH_SHORT).show()
-                                        }
-                                    )
-                                } else {
-                                    DropdownMenuItem(
-                                        text = { Text(if (isSoundMuted) "Включить звук" else "Выключить звук") },
-                                        leadingIcon = { Icon(if (isSoundMuted) Icons.Filled.VolumeUp else Icons.Filled.MusicOff, contentDescription = null, modifier = Modifier.size(20.dp)) },
-                                        onClick = {
-                                            isSoundMuted = !isSoundMuted
-                                            expanded = false
-                                            showNotificationSubmenu = false
-                                            android.widget.Toast.makeText(
-                                                context,
-                                                if (isSoundMuted) "Уведомления будут беззвучными." else "Уведомления будут со звуком.",
-                                                android.widget.Toast.LENGTH_SHORT
-                                            ).show()
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Выключить на 365д") },
-                                        leadingIcon = { Icon(Icons.Filled.EventBusy, contentDescription = null, modifier = Modifier.size(20.dp)) },
-                                        onClick = {
-                                            viewModel.toggleMute(chatId, true)
-                                            expanded = false
-                                            showNotificationSubmenu = false
-                                            android.widget.Toast.makeText(context, "Уведомления выключены на 365 д.", android.widget.Toast.LENGTH_SHORT).show()
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Выключить на время...") },
-                                        leadingIcon = { Icon(Icons.Filled.Alarm, contentDescription = null, modifier = Modifier.size(20.dp)) },
-                                        onClick = {
-                                            expanded = false
-                                            showNotificationSubmenu = false
-                                            showMuteDurationPicker = true
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Настроить") },
-                                        leadingIcon = { Icon(Icons.Filled.Tune, contentDescription = null, modifier = Modifier.size(20.dp)) },
-                                        onClick = {
-                                            expanded = false
-                                            showNotificationSubmenu = false
-                                            showCustomNotificationSettings = true
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Выключить уведомления", color = MaterialTheme.colorScheme.error) },
-                                        leadingIcon = { Icon(Icons.Filled.NotificationsOff, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp)) },
-                                        onClick = {
-                                            viewModel.toggleMute(chatId, true)
-                                            expanded = false
-                                            showNotificationSubmenu = false
-                                            android.widget.Toast.makeText(context, "Уведомления выключены.", android.widget.Toast.LENGTH_SHORT).show()
-                                        }
-                                    )
-                                }
+                            },
+                            onOpenCustomNotificationSettings = {
+                                showCustomNotificationSettings = true
+                            },
+                            onSearch = {
+                                isSearchMode = true
+                            },
+                            onViewDiscussion = {
+                                showChannelMessagesDialog = true
+                            },
+                            onOpenBoosts = {
+                                navController.navigate("channel_boost/${chat.id}")
+                            },
+                            onClearHistory = {
+                                showClearHistoryDialog = true
+                            },
+                            onReport = {
+                                android.widget.Toast.makeText(context, "Жалоба отправлена модераторам", android.widget.Toast.LENGTH_SHORT).show()
+                            },
+                            onLeaveChannel = {
+                                showLeaveChannelDialog = true
+                            },
+                            onDeleteChannel = {
+                                viewModel.deleteChat(chatId)
+                                navController.popBackStack()
                             }
-                        }
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -3352,50 +3095,27 @@ fun ChatScreen(viewModel: AppViewModel, chatId: String, navController: NavContro
         }
 
         if (showClearHistoryDialog) {
-            AlertDialog(
+            com.example.ui.channel.TelegramClearHistoryDialog(
+                channelTitle = chat.title,
                 onDismissRequest = { showClearHistoryDialog = false },
-                title = { Text("Очистить историю?") },
-                text = { Text("Вы действительно хотите удалить все сообщения из этого чата? Это действие нельзя отменить.") },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            showClearHistoryDialog = false
-                            viewModel.clearHistory(chatId)
-                            android.widget.Toast.makeText(context, "История очищена", android.widget.Toast.LENGTH_SHORT).show()
-                        }
-                    ) {
-                        Text("Очистить", color = MaterialTheme.colorScheme.error, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showClearHistoryDialog = false }) {
-                        Text("Отмена")
-                    }
+                onConfirm = {
+                    showClearHistoryDialog = false
+                    viewModel.clearHistory(chatId)
+                    android.widget.Toast.makeText(context, "История очищена", android.widget.Toast.LENGTH_SHORT).show()
                 }
             )
         }
 
         if (showLeaveChannelDialog) {
-            AlertDialog(
+            com.example.ui.channel.TelegramLeaveDiscussionDialog(
+                chatTitle = chat.title,
+                isChannel = chat.isChannel,
                 onDismissRequest = { showLeaveChannelDialog = false },
-                title = { Text(if (chat.isChannel) "Покинуть канал?" else "Покинуть группу?") },
-                text = { Text("Вы действительно хотите выйти из этого чата?") },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            showLeaveChannelDialog = false
-                            viewModel.deleteChat(chatId)
-                            navController.popBackStack()
-                            android.widget.Toast.makeText(context, "Вы покинули чат", android.widget.Toast.LENGTH_SHORT).show()
-                        }
-                    ) {
-                        Text("Выйти", color = MaterialTheme.colorScheme.error, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showLeaveChannelDialog = false }) {
-                        Text("Отмена")
-                    }
+                onConfirm = {
+                    showLeaveChannelDialog = false
+                    viewModel.deleteChat(chatId)
+                    navController.popBackStack()
+                    android.widget.Toast.makeText(context, "Вы покинули чат", android.widget.Toast.LENGTH_SHORT).show()
                 }
             )
         }

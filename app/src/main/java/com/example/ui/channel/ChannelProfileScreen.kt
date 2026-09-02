@@ -87,6 +87,9 @@ fun ChannelProfileScreen(
     var showSendGiftDialog by remember { mutableStateOf(false) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
     var showLeaveConfirmDialog by remember { mutableStateOf(false) }
+    var showClearHistoryDialog by remember { mutableStateOf(false) }
+    var showMuteDurationPicker by remember { mutableStateOf(false) }
+    var isSoundMuted by remember { mutableStateOf(false) }
     var deleteForAllSubscribers by remember { mutableStateOf(true) }
     var selectedMediaTab by remember { mutableIntStateOf(0) }
 
@@ -325,6 +328,29 @@ fun ChannelProfileScreen(
                 ) {
                     Text("Отмена", color = Color(0xFFB072FF))
                 }
+            }
+        )
+    }
+
+    // --- CLEAR HISTORY DIALOG ---
+    if (showClearHistoryDialog) {
+        TelegramClearHistoryDialog(
+            channelTitle = chat?.title ?: "Канал",
+            onDismissRequest = { showClearHistoryDialog = false },
+            onConfirm = {
+                viewModel.clearHistory(chatId)
+                Toast.makeText(context, "История канала очищена", Toast.LENGTH_SHORT).show()
+            }
+        )
+    }
+
+    // --- MUTE DURATION PICKER DIALOG ---
+    if (showMuteDurationPicker) {
+        TelegramMuteDurationPickerDialog(
+            onDismissRequest = { showMuteDurationPicker = false },
+            onDurationSelected = { duration ->
+                viewModel.toggleMute(chatId, true)
+                Toast.makeText(context, "Уведомления выключены ($duration)", Toast.LENGTH_SHORT).show()
             }
         )
     }
