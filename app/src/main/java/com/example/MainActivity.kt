@@ -44,10 +44,19 @@ import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import com.example.ui.ConnectionStatus
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.core.animation.doOnEnd
+import android.animation.ObjectAnimator
+import android.view.animation.AccelerateDecelerateInterpolator
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.koin.android.ext.android.inject
 
 class MainActivity : ComponentActivity() {
     private val viewModel: AppViewModel by inject()
+    private var isAppReady = false
 
     // Ask for POST_NOTIFICATIONS permission
     private val requestPermissionLauncher = registerForActivityResult(
@@ -100,15 +109,40 @@ class MainActivity : ComponentActivity() {
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        val splashScreen = installSplashScreen()
+        splashScreen.setKeepOnScreenCondition { !isAppReady }
+        
+        splashScreen.setOnExitAnimationListener { splashScreenViewProvider ->
+            val fadeOut = ObjectAnimator.ofFloat(
+                splashScreenViewProvider.view,
+                android.view.View.ALPHA,
+                1f,
+                0f
+            ).apply {
+                interpolator = AccelerateDecelerateInterpolator()
+                duration = 300L
+                doOnEnd { splashScreenViewProvider.remove() }
+            }
+            fadeOut.start()
+        }
+
         super.onCreate(savedInstanceState)
 
-        try {
-            if (FirebaseApp.getApps(this).isEmpty()) {
-                FirebaseApp.initializeApp(this)
+        // Asynchronously initialize Firebase services for a smooth launch experience
+        lifecycleScope.launch(Dispatchers.Default) {
+            try {
+                if (FirebaseApp.getApps(applicationContext).isEmpty()) {
+                    FirebaseApp.initializeApp(applicationContext)
+                }
+                com.example.analytics.AnalyticsTracker.init(applicationContext)
+                com.example.config.FirebaseRemoteConfigManager.init(applicationContext)
+            } catch (e: Exception) {
+                Log.w("Firebase", "Async Firebase init: ${e.message}")
+            } finally {
+                withContext(Dispatchers.Main) {
+                    isAppReady = true
+                }
             }
-            com.example.analytics.AnalyticsTracker.init(this)
-        } catch (e: Exception) {
-            Log.w("Firebase", "Firebase initialization check: ${e.message}")
         }
 
         com.example.utils.CrashReporter.init(this)
