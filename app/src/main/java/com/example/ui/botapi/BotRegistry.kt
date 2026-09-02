@@ -62,6 +62,7 @@ object BotRegistry {
         registerBot(BotFather())
         registerBot(NewsBot())
         registerBot(ShopBot())
+        registerBot(KuoteXVipBot())
     }
 
     fun registerBot(bot: Bot) {
