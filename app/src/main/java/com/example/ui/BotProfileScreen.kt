@@ -43,6 +43,15 @@ import coil.request.ImageRequest
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import kotlinx.coroutines.launch
 
+import com.example.ui.bot.BotChatDropdownMenu
+import com.example.ui.bot.BotReportBottomSheet
+import com.example.ui.bot.BotPrivacyPolicyBottomSheet
+import com.example.ui.bot.BotDeleteAndBlockDialog
+import com.example.ui.bot.createBotShortcut
+import com.example.ui.bot.shareBotLink
+import com.example.ui.bot.saveBotMediaToGallery
+import com.example.ui.channel.TelegramAutoDeleteWheelBottomSheet
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
 fun BotProfileScreen(viewModel: AppViewModel, chatId: String, navController: NavController) {
@@ -58,12 +67,16 @@ fun BotProfileScreen(viewModel: AppViewModel, chatId: String, navController: Nav
 
     var showMenu by remember { mutableStateOf(false) }
     var showReportDialog by remember { mutableStateOf(false) }
+    var showPrivacyPolicyDialog by remember { mutableStateOf(false) }
+    var showDeleteAndBlockDialog by remember { mutableStateOf(false) }
     var showQrDialog by remember { mutableStateOf(false) }
     var showAutoDeleteDialog by remember { mutableStateOf(false) }
     var showFcmDialog by remember { mutableStateOf(false) }
+    var currentAutoDeletePeriod by remember { mutableStateOf<String?>(null) }
     var fcmTitle by remember { mutableStateOf("") }
     var fcmMessage by remember { mutableStateOf("") }
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val coroutineScope = rememberCoroutineScope()
 
     val context = LocalContext.current
     
@@ -96,42 +109,56 @@ fun BotProfileScreen(viewModel: AppViewModel, chatId: String, navController: Nav
                         IconButton(onClick = { showMenu = true }) {
                             Icon(Icons.Filled.MoreVert, contentDescription = "More")
                         }
-                        DropdownMenu(
-                        expanded = showMenu,
-                        onDismissRequest = { showMenu = false }
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("Автоудаление") },
-                            leadingIcon = { Icon(Icons.Filled.Timer, null) },
-                            onClick = { 
-                                showMenu = false
-                                showAutoDeleteDialog = true 
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Создать ярлык") },
-                            leadingIcon = { Icon(Icons.Filled.AddToHomeScreen, null) },
-                            onClick = { showMenu = false }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Поделиться") },
-                            leadingIcon = { Icon(Icons.Filled.Share, null) },
-                            onClick = { showMenu = false }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Пожаловаться") },
-                            leadingIcon = { Icon(Icons.Filled.Report, null) },
-                            onClick = { 
-                                showMenu = false
+                        BotChatDropdownMenu(
+                            expanded = showMenu,
+                            onDismissRequest = { showMenu = false },
+                            botName = chat.title,
+                            botUsername = botUsername,
+                            botAvatarUrl = botPic,
+                            isMuted = chat.isMuted,
+                            currentAutoDeletePeriod = currentAutoDeletePeriod,
+                            onToggleMute = { muted ->
+                                viewModel.toggleMute(chatId, muted)
+                                android.widget.Toast.makeText(
+                                    context,
+                                    if (muted) "Уведомления выключены" else "Уведомления включены",
+                                    android.widget.Toast.LENGTH_SHORT
+                                ).show()
+                            },
+                            onAutoDeleteSelected = { period ->
+                                currentAutoDeletePeriod = period
+                                android.widget.Toast.makeText(
+                                    context,
+                                    if (period != null) "Автоудаление установлено: $period" else "Автоудаление выключено",
+                                    android.widget.Toast.LENGTH_SHORT
+                                ).show()
+                            },
+                            onOpenAutoDeleteCustomWheel = {
+                                showAutoDeleteDialog = true
+                            },
+                            onCreateShortcut = {
+                                createBotShortcut(context, chat.id, chat.title, botUsername, botPic)
+                            },
+                            onShare = {
+                                shareBotLink(context, botUsername, chat.title)
+                            },
+                            onPrivacyPolicy = {
+                                showPrivacyPolicyDialog = true
+                            },
+                            onSaveToGallery = {
+                                saveBotMediaToGallery(context, coroutineScope, botPic, chat.title)
+                            },
+                            onReport = {
                                 showReportDialog = true
+                            },
+                            onDeleteAndBlock = {
+                                showDeleteAndBlockDialog = true
+                            },
+                            onClearHistory = {
+                                viewModel.clearHistory(chatId)
+                                android.widget.Toast.makeText(context, "История сообщений очищена", android.widget.Toast.LENGTH_SHORT).show()
                             }
                         )
-                        DropdownMenuItem(
-                            text = { Text("Удалить и заблокировать", color = MaterialTheme.colorScheme.error) },
-                            leadingIcon = { Icon(Icons.Filled.Block, null, tint = MaterialTheme.colorScheme.error) },
-                            onClick = { showMenu = false }
-                        )
-                    }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -531,127 +558,67 @@ fun BotProfileScreen(viewModel: AppViewModel, chatId: String, navController: Nav
     }
 
     if (showReportDialog) {
-        ModalBottomSheet(
+        BotReportBottomSheet(
+            botName = chat.title,
+            botUsername = botUsername,
             onDismissRequest = { showReportDialog = false },
-            containerColor = MaterialTheme.colorScheme.surface
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 32.dp)
-            ) {
-                Text(
-                    text = "Пожаловаться",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
-                    color = MaterialTheme.colorScheme.onSurface
+            onSubmitReport = { reasonCategory, userComment, shouldBlock ->
+                viewModel.submitContentReport(
+                    messageId = "bot_${chat.id}_${System.currentTimeMillis()}",
+                    chatId = chat.id,
+                    senderId = chat.id,
+                    senderDisplayName = chat.title,
+                    senderUsername = botUsername,
+                    messageText = "[Жалоба на профиль бота]: $botDescription",
+                    reasonCategory = reasonCategory,
+                    userComment = userComment
                 )
-                
-                val reportOptions = listOf(
-                    "Спам",
-                    "Насилие",
-                    "Детская порнография",
-                    "Порнография",
-                    "Другое"
-                )
-                
-                reportOptions.forEach { option ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { showReportDialog = false }
-                            .padding(horizontal = 24.dp, vertical = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = option,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
+                if (shouldBlock) {
+                    viewModel.blockUser(chat.id)
+                    viewModel.deleteChat(chat.id)
+                    navController.popBackStack()
                 }
+                android.widget.Toast.makeText(context, "Жалоба отправлена модераторам", android.widget.Toast.LENGTH_SHORT).show()
+                showReportDialog = false
             }
-        }
+        )
     }
-    if (showFcmDialog) {
-        AlertDialog(
-            onDismissRequest = { showFcmDialog = false },
-            title = { Text("FCM Уведомление") },
-            text = {
-                Column {
-                    Text("Отправить уведомление всем верифицированным пользователям этого бота.", style = MaterialTheme.typography.bodySmall)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = fcmTitle,
-                        onValueChange = { fcmTitle = it },
-                        label = { Text("Заголовок") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = fcmMessage,
-                        onValueChange = { fcmMessage = it },
-                        label = { Text("Сообщение") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.sendFCMUpdateToVerifiedUsers(chatId, fcmTitle.ifEmpty { "Обновление" }, fcmMessage.ifEmpty { "Новое уведомление от бота!" })
-                    showFcmDialog = false
-                    fcmTitle = ""
-                    fcmMessage = ""
-                }) {
-                    Text("Отправить")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showFcmDialog = false }) {
-                    Text("Отмена")
-                }
+
+    if (showPrivacyPolicyDialog) {
+        BotPrivacyPolicyBottomSheet(
+            botName = chat.title,
+            botUsername = botUsername,
+            onDismissRequest = { showPrivacyPolicyDialog = false }
+        )
+    }
+
+    if (showDeleteAndBlockDialog) {
+        BotDeleteAndBlockDialog(
+            botName = chat.title,
+            botUsername = botUsername,
+            onDismissRequest = { showDeleteAndBlockDialog = false },
+            onConfirm = {
+                viewModel.blockUser(chat.id)
+                viewModel.deleteChat(chat.id)
+                android.widget.Toast.makeText(context, "Бот ${chat.title} заблокирован", android.widget.Toast.LENGTH_SHORT).show()
+                navController.popBackStack()
             }
         )
     }
 
     if (showAutoDeleteDialog) {
-        ModalBottomSheet(
+        TelegramAutoDeleteWheelBottomSheet(
+            currentValue = currentAutoDeletePeriod,
             onDismissRequest = { showAutoDeleteDialog = false },
-            containerColor = MaterialTheme.colorScheme.surface
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 32.dp)
-            ) {
-                Text(
-                    text = "Автоудаление через...",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                
-                val options = listOf("Выключить", "24 часа", "7 дней", "1 месяц", "1 год", "Настроить")
-                
-                options.forEach { option ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { showAutoDeleteDialog = false }
-                            .padding(horizontal = 24.dp, vertical = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = option,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                }
+            onApply = { period ->
+                currentAutoDeletePeriod = period
+                android.widget.Toast.makeText(
+                    context,
+                    if (period != null) "Автоудаление установлено: $period" else "Автоудаление выключено",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
             }
-        }
+        )
     }
 
     if (showQrDialog) {

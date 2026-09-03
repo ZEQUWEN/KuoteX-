@@ -41,6 +41,14 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.example.ui.bot.BotChatDropdownMenu
+import com.example.ui.bot.BotReportBottomSheet
+import com.example.ui.bot.BotPrivacyPolicyBottomSheet
+import com.example.ui.bot.BotDeleteAndBlockDialog
+import com.example.ui.bot.createBotShortcut
+import com.example.ui.bot.shareBotLink
+import com.example.ui.bot.saveBotMediaToGallery
+import com.example.ui.channel.TelegramAutoDeleteWheelBottomSheet
 import java.util.Date
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.activity.compose.BackHandler
@@ -255,6 +263,12 @@ fun ChatScreen(viewModel: AppViewModel, chatId: String, navController: NavContro
     var showClearHistoryDialog by remember { mutableStateOf(false) }
     var showChannelMessagesDialog by remember { mutableStateOf(false) }
     var showLeaveChannelDialog by remember { mutableStateOf(false) }
+
+    var showBotReportDialog by remember { mutableStateOf(false) }
+    var showBotPrivacyPolicyDialog by remember { mutableStateOf(false) }
+    var showBotDeleteAndBlockDialog by remember { mutableStateOf(false) }
+    var showBotAutoDeleteDialog by remember { mutableStateOf(false) }
+    var botAutoDeletePeriod by remember { mutableStateOf<String?>(null) }
 
     // Custom notification settings states
     var notifShowText by remember { mutableStateOf(true) }
@@ -672,65 +686,121 @@ fun ChatScreen(viewModel: AppViewModel, chatId: String, navController: NavContro
                         IconButton(onClick = { expanded = true }) {
                             Icon(Icons.Filled.MoreVert, contentDescription = "Меню опций")
                         }
-                        com.example.ui.channel.ChannelChatDropdownMenu(
-                            expanded = expanded,
-                            onDismissRequest = { expanded = false },
-                            isAdmin = true,
-                            isChannel = chat.isChannel,
-                            isGroup = chat.isGroup,
-                            isMuted = chat.isMuted,
-                            isSoundMuted = isSoundMuted,
-                            channelTitle = chat.title,
-                            onToggleMute = { muted ->
-                                viewModel.toggleMute(chatId, muted)
-                                android.widget.Toast.makeText(
-                                    context,
-                                    if (muted) "Уведомления выключены." else "Уведомления включены.",
-                                    android.widget.Toast.LENGTH_SHORT
-                                ).show()
-                            },
-                            onToggleSoundMute = {
-                                isSoundMuted = !isSoundMuted
-                                android.widget.Toast.makeText(
-                                    context,
-                                    if (isSoundMuted) "Уведомления будут беззвучными." else "Уведомления будут со звуком.",
-                                    android.widget.Toast.LENGTH_SHORT
-                                ).show()
-                            },
-                            onMuteForDuration = { duration ->
-                                if (duration == "custom") {
-                                    showMuteDurationPicker = true
-                                } else {
-                                    viewModel.toggleMute(chatId, true)
-                                    android.widget.Toast.makeText(context, "Уведомления выключены на $duration.", android.widget.Toast.LENGTH_SHORT).show()
+                        if (chat.isBot) {
+                            BotChatDropdownMenu(
+                                expanded = expanded,
+                                onDismissRequest = { expanded = false },
+                                botName = chat.title,
+                                botUsername = "@${chat.id}",
+                                botAvatarUrl = "https://picsum.photos/seed/${chat.id}/400",
+                                isMuted = chat.isMuted,
+                                isSoundMuted = isSoundMuted,
+                                currentAutoDeletePeriod = botAutoDeletePeriod,
+                                onToggleMute = { muted ->
+                                    viewModel.toggleMute(chatId, muted)
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        if (muted) "Уведомления выключены." else "Уведомления включены.",
+                                        android.widget.Toast.LENGTH_SHORT
+                                    ).show()
+                                },
+                                onAutoDeleteSelected = { period ->
+                                    botAutoDeletePeriod = period
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        if (period != null) "Автоудаление установлено: $period" else "Автоудаление выключено",
+                                        android.widget.Toast.LENGTH_SHORT
+                                    ).show()
+                                },
+                                onOpenAutoDeleteCustomWheel = {
+                                    showBotAutoDeleteDialog = true
+                                },
+                                onCreateShortcut = {
+                                    createBotShortcut(context, chat.id, chat.title, "@${chat.id}", null)
+                                },
+                                onShare = {
+                                    shareBotLink(context, "@${chat.id}", chat.title)
+                                },
+                                onPrivacyPolicy = {
+                                    showBotPrivacyPolicyDialog = true
+                                },
+                                onSaveToGallery = {
+                                    saveBotMediaToGallery(context, coroutineScope, "https://picsum.photos/seed/${chat.id}/400", chat.title)
+                                },
+                                onReport = {
+                                    showBotReportDialog = true
+                                },
+                                onDeleteAndBlock = {
+                                    showBotDeleteAndBlockDialog = true
+                                },
+                                onClearHistory = {
+                                    showClearHistoryDialog = true
+                                },
+                                onSearch = {
+                                    isSearchMode = true
                                 }
-                            },
-                            onOpenCustomNotificationSettings = {
-                                showCustomNotificationSettings = true
-                            },
-                            onSearch = {
-                                isSearchMode = true
-                            },
-                            onViewDiscussion = {
-                                showChannelMessagesDialog = true
-                            },
-                            onOpenBoosts = {
-                                navController.navigate("channel_boost/${chat.id}")
-                            },
-                            onClearHistory = {
-                                showClearHistoryDialog = true
-                            },
-                            onReport = {
-                                android.widget.Toast.makeText(context, "Жалоба отправлена модераторам", android.widget.Toast.LENGTH_SHORT).show()
-                            },
-                            onLeaveChannel = {
-                                showLeaveChannelDialog = true
-                            },
-                            onDeleteChannel = {
-                                viewModel.deleteChat(chatId)
-                                navController.popBackStack()
-                            }
-                        )
+                            )
+                        } else {
+                            com.example.ui.channel.ChannelChatDropdownMenu(
+                                expanded = expanded,
+                                onDismissRequest = { expanded = false },
+                                isAdmin = true,
+                                isChannel = chat.isChannel,
+                                isGroup = chat.isGroup,
+                                isMuted = chat.isMuted,
+                                isSoundMuted = isSoundMuted,
+                                channelTitle = chat.title,
+                                onToggleMute = { muted ->
+                                    viewModel.toggleMute(chatId, muted)
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        if (muted) "Уведомления выключены." else "Уведомления включены.",
+                                        android.widget.Toast.LENGTH_SHORT
+                                    ).show()
+                                },
+                                onToggleSoundMute = {
+                                    isSoundMuted = !isSoundMuted
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        if (isSoundMuted) "Уведомления будут беззвучными." else "Уведомления будут со звуком.",
+                                        android.widget.Toast.LENGTH_SHORT
+                                    ).show()
+                                },
+                                onMuteForDuration = { duration ->
+                                    if (duration == "custom") {
+                                        showMuteDurationPicker = true
+                                    } else {
+                                        viewModel.toggleMute(chatId, true)
+                                        android.widget.Toast.makeText(context, "Уведомления выключены на $duration.", android.widget.Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                onOpenCustomNotificationSettings = {
+                                    showCustomNotificationSettings = true
+                                },
+                                onSearch = {
+                                    isSearchMode = true
+                                },
+                                onViewDiscussion = {
+                                    showChannelMessagesDialog = true
+                                },
+                                onOpenBoosts = {
+                                    navController.navigate("channel_boost/${chat.id}")
+                                },
+                                onClearHistory = {
+                                    showClearHistoryDialog = true
+                                },
+                                onReport = {
+                                    android.widget.Toast.makeText(context, "Жалоба отправлена модераторам", android.widget.Toast.LENGTH_SHORT).show()
+                                },
+                                onLeaveChannel = {
+                                    showLeaveChannelDialog = true
+                                },
+                                onDeleteChannel = {
+                                    viewModel.deleteChat(chatId)
+                                    navController.popBackStack()
+                                }
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -3172,6 +3242,71 @@ fun ChatScreen(viewModel: AppViewModel, chatId: String, navController: NavContro
                 }
             )
         }
+
+        if (showBotReportDialog) {
+            BotReportBottomSheet(
+                botName = chat.title,
+                botUsername = "@${chat.id}",
+                onDismissRequest = { showBotReportDialog = false },
+                onSubmitReport = { reasonCategory, userComment, shouldBlock ->
+                    viewModel.submitContentReport(
+                        messageId = "bot_${chat.id}_${System.currentTimeMillis()}",
+                        chatId = chat.id,
+                        senderId = chat.id,
+                        senderDisplayName = chat.title,
+                        senderUsername = "@${chat.id}",
+                        messageText = "[Жалоба на чат бота]: ${chat.title}",
+                        reasonCategory = reasonCategory,
+                        userComment = userComment
+                    )
+                    if (shouldBlock) {
+                        viewModel.blockUser(chat.id)
+                        viewModel.deleteChat(chat.id)
+                        navController.popBackStack()
+                    }
+                    android.widget.Toast.makeText(context, "Жалоба отправлена модераторам", android.widget.Toast.LENGTH_SHORT).show()
+                    showBotReportDialog = false
+                }
+            )
+        }
+
+        if (showBotPrivacyPolicyDialog) {
+            BotPrivacyPolicyBottomSheet(
+                botName = chat.title,
+                botUsername = "@${chat.id}",
+                onDismissRequest = { showBotPrivacyPolicyDialog = false }
+            )
+        }
+
+        if (showBotDeleteAndBlockDialog) {
+            BotDeleteAndBlockDialog(
+                botName = chat.title,
+                botUsername = "@${chat.id}",
+                onDismissRequest = { showBotDeleteAndBlockDialog = false },
+                onConfirm = {
+                    viewModel.blockUser(chat.id)
+                    viewModel.deleteChat(chat.id)
+                    android.widget.Toast.makeText(context, "Бот ${chat.title} заблокирован", android.widget.Toast.LENGTH_SHORT).show()
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        if (showBotAutoDeleteDialog) {
+            TelegramAutoDeleteWheelBottomSheet(
+                currentValue = botAutoDeletePeriod,
+                onDismissRequest = { showBotAutoDeleteDialog = false },
+                onApply = { period ->
+                    botAutoDeletePeriod = period
+                    android.widget.Toast.makeText(
+                        context,
+                        if (period != null) "Автоудаление установлено: $period" else "Автоудаление выключено",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                }
+            )
+        }
+
         
         if (messagesToForward.isNotEmpty()) {
             val forwardMsgs = messagesToForward.sortedBy { it.timestamp }
