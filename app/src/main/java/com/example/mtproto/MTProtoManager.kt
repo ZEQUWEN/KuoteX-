@@ -1,181 +1,132 @@
 package com.example.mtproto
 
-import java.security.KeyFactory
-import java.security.KeyPair
-import java.security.KeyPairGenerator
-import java.security.MessageDigest
-import java.security.PublicKey
+import java.math.BigInteger
 import java.security.SecureRandom
-import java.security.spec.X509EncodedKeySpec
-import javax.crypto.Cipher
-import javax.crypto.KeyAgreement
-import javax.crypto.spec.IvParameterSpec
-import javax.crypto.spec.SecretKeySpec
+import java.util.Arrays
 
 /**
- * Базовый менеджер для реализации протокола MTProto (Mobile Telegram Protocol).
- * Отвечает за шифрование полезной нагрузки, авторизацию и криптографическую маршрутизацию.
- * Референс: https://core.telegram.org/mtproto
+ * Менеджер MTProto 2.0 для KuoteX.
+ *
+ * Публичный API совместим с предыдущей версией (initializeSession,
+ * completeDhExchange, encryptMessage, decryptMessage, authKey, sessionId,
+ * serverSalt), поэтому com.example.api.TDLib продолжает работать без правок.
+ *
+ * Что изменилось внутри:
+ *  - конверт теперь полный (auth_key_id + msg_key + данные), а не msg_key + данные;
+ *  - msg_key проверяется при расшифровке (раньше подделка проходила молча);
+ *  - добавлены msg_id / seq_no / session_id — без них работает replay;
+ *  - DH проверяет группу и присланные значения (раньше сервер мог навязать слабую группу);
+ *  - паддинг 12..1024 байта по спецификации 2.0 (раньше 16, как в 1.0).
+ *
+ * Референс: https://core.telegram.org/mtproto/description
  */
 class MTProtoManager(val isClient: Boolean = true) {
-    
-    /**
-     * Ключ авторизации (Auth Key), согласованный через обмен Диффи-Хеллмана.
-     * В реальном MTProto это 256 байт (2048 бит).
-     */
+
     var authKey: ByteArray? = null
         private set
 
-    /**
-     * Идентификатор сессии для предотвращения replay-атак.
-     */
-    var sessionId: Long = 0L
+    /** Сессия создаётся сразу после получения auth_key. */
+    var session: MTProtoSession? = null
         private set
 
-    /**
-     * Соль, полученная от сервера.
-     */
-    var serverSalt: Long = 0L
-        private set
+    val sessionId: Long
+        get() = session?.sessionId ?: 0L
 
-    private var localKeyPair: KeyPair? = null
+    var serverSalt: Long
+        get() = session?.serverSalt ?: 0L
+        set(value) { session?.serverSalt = value }
+
+    private var secretB: BigInteger? = null
+
+    // ------------------------------------------------------------ handshake
 
     /**
-     * Шаг 1: Инициализация сеанса MTProto.
-     * Генерируем локальные ключи Диффи-Хеллмана для последующего обмена.
-     * Возвращает закодированный публичный ключ для отправки на сервер (в данном случае Supabase).
+     * Шаг 1: генерация локального секрета DH.
+     * @return g_b в виде 256 байт — отправляется серверу.
      */
     fun initializeSession(): ByteArray {
-        sessionId = SecureRandom().nextLong()
-        
-        // Генерация DH пары ключей (в Android поддерживается DH из коробки)
-        val keyPairGenerator = KeyPairGenerator.getInstance("DH")
-        keyPairGenerator.initialize(2048) // Используем 2048-битный ключ как в MTProto
-        localKeyPair = keyPairGenerator.generateKeyPair()
-        
-        return localKeyPair!!.public.encoded
+        val b = MTProtoDh.generateSecret()
+        secretB = b
+        val gB = MTProtoDh.G.modPow(b, MTProtoDh.P)
+        return MTProtoDh.toFixed256(gB)
     }
 
     /**
-     * Шаг 2: Завершение DH обмена (генерация auth_key)
-     * @param serverPublicKeyEncoded - Публичный ключ, полученный от сервера
+     * Шаг 2: завершение DH. Принимает g_a сервера (256 байт big-endian).
+     *
+     * Внимание: формат изменился. Раньше сюда передавался X509-encoded
+     * ключ JCA; теперь — сырое значение g_a, как в спецификации MTProto.
      */
-    fun completeDhExchange(serverPublicKeyEncoded: ByteArray) {
-        val keyFactory = KeyFactory.getInstance("DH")
-        val keySpec = X509EncodedKeySpec(serverPublicKeyEncoded)
-        val serverPublicKey: PublicKey = keyFactory.generatePublic(keySpec)
-        
-        val keyAgreement = KeyAgreement.getInstance("DH")
-        keyAgreement.init(localKeyPair!!.private)
-        keyAgreement.doPhase(serverPublicKey, true)
-        
-        var secret = keyAgreement.generateSecret()
-        
-        // Дополняем секрет до 256 байт (2048 бит)
-        if (secret.size < 256) {
-            val padded = ByteArray(256)
-            System.arraycopy(secret, 0, padded, 256 - secret.size, secret.size)
-            secret = padded
-        } else if (secret.size > 256) {
-            secret = secret.copyOfRange(secret.size - 256, secret.size)
-        }
-        
-        authKey = secret
-        serverSalt = SecureRandom().nextLong()
+    fun completeDhExchange(serverGaBytes: ByteArray) {
+        val b = secretB ?: throw IllegalStateException("Call initializeSession() first")
+        val gA = BigInteger(1, serverGaBytes)
+
+        val result = MTProtoDh.computeAuthKey(gA, b)
+
+        authKey = result.authKey
+        session = MTProtoSession(result.authKey, isClient)
+
+        // Секретную экспоненту после вывода ключа держать в памяти незачем.
+        secretB = null
     }
 
     /**
-     * Шифрование исходящего сообщения в соответствии с KDF (Key Derivation Function) MTProto 2.0.
-     * Возвращает зашифрованный payload (msg_key + aes_encrypted_data).
+     * Прямая установка auth_key — для восстановления сессии из
+     * защищённого хранилища без повторного handshake.
      */
-    fun encryptMessage(messageData: ByteArray): ByteArray {
-        val key = authKey ?: throw IllegalStateException("Auth key is not generated. Please complete DH exchange first.")
-        
-        // MTProto requires data to be padded to a multiple of 16 bytes.
-        val paddingLength = if (messageData.size % 16 == 0) 16 else 16 - (messageData.size % 16)
-        val padding = ByteArray(paddingLength)
-        SecureRandom().nextBytes(padding)
-        val paddedData = messageData + padding
-        
-        // 1. Вычисляем Message Key (msg_key) - 16 средних байт из SHA-256 хэша
-        val isOutgoing = isClient // Клиент отправляет (x=0), Сервер отправляет (x=8)
-        val msgKey = calculateMessageKey(key, paddedData, isOutgoing)
-        
-        // 2. Деривация AES ключа и IV (MTProto 2.0 KDF)
-        val (aesKey, aesIv) = deriveKdf(key, msgKey, isOutgoing)
-        
-        // 3. Шифрование AES-256-IGE
-        val encryptedData = com.example.crypto.AesIge.encrypt(paddedData, aesKey, aesIv)
-        
-        // В MTProto 2.0 заголовок содержит auth_key_id (8 байт), msg_key (16 байт) и зашифрованные данные.
-        // Здесь для упрощения отправляем msg_key + encrypted_data
-        return msgKey + encryptedData
+    fun restoreAuthKey(key: ByteArray, salt: Long = 0L) {
+        if (key.size != 256)
+            throw MTProtoCrypto.SecurityViolation("auth_key must be 256 bytes")
+        authKey = key
+        session = MTProtoSession(key, isClient).apply { serverSalt = salt }
+    }
+
+    /** Идентификатор ключа, по которому сервер выбирает auth_key. */
+    fun authKeyId(): Long {
+        val key = authKey ?: throw IllegalStateException("Auth key is not generated")
+        return MTProtoCrypto.authKeyId(key)
+    }
+
+    // ------------------------------------------------------------ messages
+
+    /**
+     * Шифрует TL-сериализованное тело в полный конверт MTProto 2.0.
+     * @return auth_key_id(8) + msg_key(16) + AES-256-IGE(данные)
+     */
+    fun encryptMessage(messageData: ByteArray, contentRelated: Boolean = true): ByteArray {
+        val s = session
+            ?: throw IllegalStateException("Auth key is not generated. Complete DH exchange first.")
+        return s.encrypt(messageData, contentRelated)
     }
 
     /**
-     * Расшифровка входящего сообщения.
+     * Расшифровывает конверт с полной проверкой инвариантов.
+     * @return только тело сообщения, без служебного заголовка и паддинга.
+     * @throws MTProtoCrypto.SecurityViolation при подделке, повторе или сдвиге часов.
      */
     fun decryptMessage(encryptedPayload: ByteArray): ByteArray {
-        val key = authKey ?: throw IllegalStateException("Auth key is not generated.")
-        
-        if (encryptedPayload.size < 16) throw IllegalArgumentException("Invalid payload size")
-        
-        // Извлекаем msg_key (первые 16 байт)
-        val msgKey = encryptedPayload.copyOfRange(0, 16)
-        val encryptedData = encryptedPayload.copyOfRange(16, encryptedPayload.size)
-        
-        // Деривация ключей для расшифровки
-        val isIncoming = !isClient // Клиент принимает (x=8), Сервер принимает (x=0)
-        val (aesKey, aesIv) = deriveKdf(key, msgKey, isIncoming)
-        
-        // Расшифровка AES-256-IGE
-        val decryptedDataWithPadding = com.example.crypto.AesIge.decrypt(encryptedData, aesKey, aesIv)
-        
-        // В реальном MTProto здесь происходит проверка msgKey.
-        // Для упрощения возвращаем данные (padding нужно убирать на уровне TL-парсинга, так как он выровнен,
-        // но здесь мы просто возвращаем весь буфер, так как TL парсер игнорирует лишние байты в конце).
-        return decryptedDataWithPadding
+        val s = session
+            ?: throw IllegalStateException("Auth key is not generated")
+        return s.decrypt(encryptedPayload).body
     }
 
-    /**
-     * Вычисление msg_key на основе данных (MTProto 2.0 SHA-256)
-     */
-    private fun calculateMessageKey(authKey: ByteArray, data: ByteArray, isOutgoing: Boolean): ByteArray {
-        val digest = MessageDigest.getInstance("SHA-256")
-        // MTProto использует фрагмент ключа авторизации для хэширования (client_msg vs server_msg)
-        val x = if (isOutgoing) 88 else 96
-        val authKeyFragment = authKey.copyOfRange(x, x + 32)
-        digest.update(authKeyFragment)
-        digest.update(data)
-        // Берем 16 байт из середины хэша: [8..23]
-        return digest.digest().copyOfRange(8, 24)
+    /** Полная расшифровка вместе с метаданными (msg_id нужен для msgs_ack). */
+    fun decryptFull(encryptedPayload: ByteArray): MTProtoSession.Incoming {
+        val s = session ?: throw IllegalStateException("Auth key is not generated")
+        return s.decrypt(encryptedPayload)
     }
 
-    /**
-     * Функция вывода ключей (KDF) MTProto 2.0.
-     * Возвращает пару (aes_key, aes_iv).
-     */
-    private fun deriveKdf(authKey: ByteArray, msgKey: ByteArray, isOutgoing: Boolean): Pair<ByteArray, ByteArray> {
-        val x = if (isOutgoing) 0 else 8
-        val digest = MessageDigest.getInstance("SHA-256")
-        
-        // sha256_a = SHA256 (msg_key + substr (auth_key, x, 36));
-        digest.update(msgKey)
-        digest.update(authKey.copyOfRange(x, x + 36))
-        val sha256a = digest.digest()
-        
-        // sha256_b = SHA256 (substr (auth_key, 40+x, 36) + msg_key);
-        digest.reset()
-        digest.update(authKey.copyOfRange(40 + x, 40 + x + 36))
-        digest.update(msgKey)
-        val sha256b = digest.digest()
-        
-        // aes_key = substr(sha256_a, 0, 8) + substr(sha256_b, 8, 16) + substr(sha256_a, 24, 8)
-        val aesKey = sha256a.copyOfRange(0, 8) + sha256b.copyOfRange(8, 24) + sha256a.copyOfRange(24, 32)
-        
-        // aes_iv = substr(sha256_b, 0, 8) + substr(sha256_a, 8, 16) + substr(sha256_b, 24, 8)
-        val aesIv = sha256b.copyOfRange(0, 8) + sha256a.copyOfRange(8, 24) + sha256b.copyOfRange(24, 32)
-        
-        return Pair(aesKey, aesIv)
+    /** Коррекция часов по ответу сервера (bad_msg_notification 16/17). */
+    fun synchronizeClock(serverMessageId: Long) {
+        session?.synchronizeClock(serverMessageId)
+    }
+
+    /** Обнуляет ключ в памяти при выходе из аккаунта. */
+    fun wipe() {
+        authKey?.let { Arrays.fill(it, 0.toByte()) }
+        authKey = null
+        session = null
+        secretB = null
     }
 }
+
