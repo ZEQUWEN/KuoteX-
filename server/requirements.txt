@@ -1,0 +1,7 @@
+cryptography>=42.0.0
+# Опционально: ускоряет asyncio в 2-4 раза. На слабом VPS особенно заметно.
+uvloop>=0.19.0; sys_platform != "win32"
+
+# Только для разработки:
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
