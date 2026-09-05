@@ -1,4 +1,4 @@
-package com.example
+package com.example.mtproto
 
 import com.example.crypto.AesIge
 import com.example.mtproto.MTProtoCrypto
