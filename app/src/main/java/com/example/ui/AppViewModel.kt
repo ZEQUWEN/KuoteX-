@@ -30,6 +30,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 
@@ -191,6 +193,24 @@ data class UserPresence(
     val lastSeen: Long
 )
 
+data class BotSearchResult(
+    val id: String,
+    val name: String,
+    val username: String,
+    val description: String,
+    val category: String = "Bot"
+)
+
+data class DatabaseSearchResults(
+    val users: List<UserAccount> = emptyList(),
+    val channels: List<Chat> = emptyList(),
+    val groups: List<Chat> = emptyList(),
+    val bots: List<BotSearchResult> = emptyList()
+) {
+    val isEmpty: Boolean
+        get() = users.isEmpty() && channels.isEmpty() && groups.isEmpty() && bots.isEmpty()
+}
+
 class AppViewModel(
     val repository: MessengerRepository,
     val userPrefs: com.example.data.UserPreferencesRepository,
@@ -199,6 +219,19 @@ class AppViewModel(
 ) : ViewModel() {
     private val _searchQuery = MutableStateFlow("")
     val searchQuery = _searchQuery.asStateFlow()
+
+    private val _tabSearchQueries = MutableStateFlow<Map<Int, String>>(emptyMap())
+    val tabSearchQueries: StateFlow<Map<Int, String>> = _tabSearchQueries.asStateFlow()
+
+    fun setTabSearchQuery(tabIndex: Int, query: String) {
+        _tabSearchQueries.update { it + (tabIndex to query) }
+        _searchQuery.value = query
+    }
+
+    fun clearTabSearchQuery(tabIndex: Int) {
+        _tabSearchQueries.update { it + (tabIndex to "") }
+        _searchQuery.value = ""
+    }
 
     @OptIn(FlowPreview::class)
     val debouncedSearchQuery = _searchQuery
@@ -787,29 +820,79 @@ class AppViewModel(
             }
             
             // Seed initial data if empty
-            val accs = repository.allAccounts.firstOrNull(); if (accs.isNullOrEmpty()) {
+            val accs = repository.allAccounts.firstOrNull()
+            if (accs.isNullOrEmpty()) {
+                repository.insertAccount(UserAccount("123456789", "@neo_hacker", "Neo", "https://i.pravatar.cc/150?img=11", true, true, phoneNumber = "+7 (922) 669-26-82", bio = "Matrix architect & cybersecurity engineer"))
+                repository.insertAccount(UserAccount("987654321", "@synth_wave", "Synth Wave", "https://i.pravatar.cc/150?img=33", false, false, phoneNumber = "+7 (999) 111-22-33", bio = "80s retro synth lover & sound designer"))
+                repository.insertAccount(UserAccount("456789123", "@cyber_punk", "Cyber P.", "https://i.pravatar.cc/150?img=55", false, false, phoneNumber = "+7 (777) 444-55-66", bio = "Night City wanderer"))
                 
-                    repository.insertAccount(UserAccount("123456789", "@neo_hacker", "Neo", "https://i.pravatar.cc/150?img=11", true, true, phoneNumber = "+7 (922) 669-26-82"))
-                    repository.insertAccount(UserAccount("987654321", "@synth_wave", "Synth Wave", "https://i.pravatar.cc/150?img=33", false, false, phoneNumber = "+7 (999) 111-22-33"))
-                    repository.insertAccount(UserAccount("456789123", "@cyber_punk", "Cyber P.", "https://i.pravatar.cc/150?img=55", false, false, phoneNumber = "+7 (777) 444-55-66"))
-                    
-                    repository.insertChat(Chat("c1", "KuoteX Coders", isGroup = true, lastMessage = "Let's build in Compose! \uD83D\uDD25", unreadCount = 4))
-                    repository.insertChat(Chat("botfather", "BotFather", isBot = true, lastMessage = "", unreadCount = 0))
-                    repository.insertChat(Chat("c2", "Cyberpunk Daily", isChannel = true, lastMessage = "", unreadCount = 0))
-                    repository.insertChat(Chat("c3", "SynthBot", isBot = true, lastMessage = "", unreadCount = 0))
-                    repository.insertChat(Chat("c4", "@trinity", isGroup = false, lastMessage = "", unreadCount = 0))
+                repository.insertChat(Chat("c1", "KuoteX Coders", isGroup = true, lastMessage = "Let's build in Compose! \uD83D\uDD25", unreadCount = 4))
+                repository.insertChat(Chat("botfather", "BotFather", isBot = true, lastMessage = "KuoteX bot management and creation", unreadCount = 0))
+                repository.insertChat(Chat("c2", "Cyberpunk Daily", isChannel = true, lastMessage = "Cyberpunk news, tech aesthetics & lifestyle", unreadCount = 0))
+                repository.insertChat(Chat("c3", "SynthBot", isBot = true, lastMessage = "Synthesizer audio generator bot", unreadCount = 0))
+                repository.insertChat(Chat("c4", "@trinity", isGroup = false, lastMessage = "", unreadCount = 0))
 
-                    repository.insertGroupMember(GroupMember("c1", "u1", "Sarah Connor", isAdmin = true))
-                    repository.insertGroupMember(GroupMember("c1", "u2", "John Doe", isAdmin = false))
-                    repository.insertGroupMember(GroupMember("c1", "u3", "Crypto Alpha", isAdmin = false))
-                    repository.insertGroupMember(GroupMember("c1", "u4", "KuoteX Hacker", isAdmin = false))
-                } else {
-                    // Seamlessly migrate legacy chat title if present
-                    val c1 = repository.allChats.firstOrNull()?.find { it.id == "c1" }
-                    if (c1 != null && c1.title == "Neon Coders") {
-                        repository.insertChat(c1.copy(title = "KuoteX Coders"))
-                    }
+                repository.insertGroupMember(GroupMember("c1", "u1", "Sarah Connor", isAdmin = true))
+                repository.insertGroupMember(GroupMember("c1", "u2", "John Doe", isAdmin = false))
+                repository.insertGroupMember(GroupMember("c1", "u3", "Crypto Alpha", isAdmin = false))
+                repository.insertGroupMember(GroupMember("c1", "u4", "KuoteX Hacker", isAdmin = false))
+            } else {
+                // Seamlessly migrate legacy chat title if present
+                val c1 = repository.allChats.firstOrNull()?.find { it.id == "c1" }
+                if (c1 != null && c1.title == "Neon Coders") {
+                    repository.insertChat(c1.copy(title = "KuoteX Coders"))
                 }
+            }
+
+            // Seed extended public catalog into Room database so database search returns real results
+            val currentAccs = repository.allAccounts.firstOrNull() ?: emptyList()
+            val currentAccIds = currentAccs.map { it.id }.toSet()
+            val extraAccounts = listOf(
+                UserAccount("u10", "@durov", "Pavel Durov", "https://i.pravatar.cc/150?img=60", false, false, phoneNumber = "+1 (555) 010-20-30", bio = "Freedom, privacy and open digital platforms"),
+                UserAccount("u11", "@alice_dev", "Alice Hacker", "https://i.pravatar.cc/150?img=47", false, false, phoneNumber = "+1 (555) 011-22-33", bio = "Android engineer & Kotlin enthusiast"),
+                UserAccount("u12", "@alex_kuotex", "Alex KuoteX", "https://i.pravatar.cc/150?img=12", false, false, phoneNumber = "+1 (555) 012-34-56", bio = "KuoteX Messenger Core Developer"),
+                UserAccount("u13", "@elena_star", "Elena Star", "https://i.pravatar.cc/150?img=49", false, false, phoneNumber = "+1 (555) 013-45-67", bio = "Product Design & Neon UI lead"),
+                UserAccount("u14", "@john_crypto", "John Satoshi", "https://i.pravatar.cc/150?img=68", false, false, phoneNumber = "+1 (555) 014-56-78", bio = "Crypto analyst & decentralized systems"),
+                UserAccount("u15", "@morpheus", "Morpheus", "https://i.pravatar.cc/150?img=59", false, false, phoneNumber = "+1 (555) 015-67-89", bio = "Take the red pill"),
+                UserAccount("u16", "@trinity", "Trinity Hacker", "https://i.pravatar.cc/150?img=44", false, false, phoneNumber = "+1 (555) 016-78-90", bio = "Security & protocol researcher")
+            )
+            extraAccounts.forEach { acc ->
+                if (!currentAccIds.contains(acc.id)) {
+                    repository.insertAccount(acc)
+                }
+            }
+
+            val currentChats = repository.allChats.firstOrNull() ?: emptyList()
+            val currentChatIds = currentChats.map { it.id }.toSet()
+            val extraChats = listOf(
+                // Public Groups
+                Chat("g1", "OpenAI Developers", isGroup = true, lastMessage = "Discussing LLM integration and prompt tuning", unreadCount = 0),
+                Chat("g2", "Android Kotlin Developers", isGroup = true, lastMessage = "Jetpack Compose best practices and tips", unreadCount = 0),
+                Chat("g3", "Cyber Security Hub", isGroup = true, lastMessage = "E2E encryption and Signal protocol discussion", unreadCount = 0),
+                Chat("g4", "KuoteX Global Community", isGroup = true, lastMessage = "Welcome everyone to KuoteX community!", unreadCount = 0),
+                Chat("g5", "Compose UI Designers", isGroup = true, lastMessage = "New neon themes and animations showcased", unreadCount = 0),
+
+                // Public Channels
+                Chat("c5", "Android News & Releases", isChannel = true, lastMessage = "Latest Android features and Kotlin releases", unreadCount = 0),
+                Chat("c6", "KuoteX Official", isChannel = true, lastMessage = "Official updates, features and news of KuoteX", unreadCount = 0),
+                Chat("c7", "Tech & AI Breakthroughs", isChannel = true, lastMessage = "Frontier AI research and real-time models", unreadCount = 0),
+                Chat("c8", "Crypto Signals & Markets", isChannel = true, lastMessage = "Market analytics, Bitcoin and Web3 trends", unreadCount = 0),
+                Chat("c9", "Design & Aesthetics", isChannel = true, lastMessage = "Modern UX/UI trends and design systems", unreadCount = 0),
+
+                // Bots
+                Chat("weather_bot", "Weather Bot", isBot = true, lastMessage = "Check live weather forecasts anywhere", unreadCount = 0),
+                Chat("reminder_bot", "Reminder Bot", isBot = true, lastMessage = "Smart reminders and schedule notifications", unreadCount = 0),
+                Chat("crypto_bot", "Crypto Bot", isBot = true, lastMessage = "Real-time cryptocurrency price alerts", unreadCount = 0),
+                Chat("news_bot", "News Bot", isBot = true, lastMessage = "Daily tech and global news feed", unreadCount = 0),
+                Chat("shop_bot", "Shop Bot", isBot = true, lastMessage = "Digital goods, stickers and Stars payment", unreadCount = 0),
+                Chat("kuotex_vip_bot", "KuoteX VIP Bot", isBot = true, lastMessage = "VIP membership and channel boost status", unreadCount = 0),
+                Chat("echo_bot", "Echo Bot", isBot = true, lastMessage = "Test message delivery and latency", unreadCount = 0)
+            )
+            extraChats.forEach { ch ->
+                if (!currentChatIds.contains(ch.id)) {
+                    repository.insertChat(ch)
+                }
+            }
         }
         // Cache Manager Service
         viewModelScope.launch {
@@ -1845,6 +1928,141 @@ class AppViewModel(
         _activeStreams.update { current ->
             val session = current[hostUserId] ?: return@update current
             current + (hostUserId to session.copy(viewerCount = count))
+        }
+    }
+
+    fun openOrCreateChat(chat: Chat) {
+        viewModelScope.launch {
+            repository.insertChat(chat)
+        }
+    }
+
+    fun openOrCreateUserChat(user: UserAccount) {
+        viewModelScope.launch {
+            val title = if (user.displayName.isNotBlank()) user.displayName else user.username
+            val chat = Chat(
+                id = user.id,
+                title = title,
+                isGroup = false,
+                isChannel = false,
+                isBot = false,
+                lastMessage = user.bio
+            )
+            repository.insertChat(chat)
+        }
+    }
+
+    fun openOrCreateBotChat(bot: BotSearchResult) {
+        viewModelScope.launch {
+            val chat = Chat(
+                id = bot.id,
+                title = bot.name,
+                isGroup = false,
+                isChannel = false,
+                isBot = true,
+                lastMessage = bot.description
+            )
+            repository.insertChat(chat)
+        }
+    }
+
+    fun searchDatabase(query: String, folderIndex: Int): Flow<DatabaseSearchResults> {
+        val raw = query.trim()
+        val clean = raw.removePrefix("@").trim()
+        if (clean.isBlank()) {
+            return kotlinx.coroutines.flow.flowOf(DatabaseSearchResults())
+        }
+
+        return when (folderIndex) {
+            1 -> { // Personal: search user accounts by @username or nickname
+                repository.searchAccounts(clean).map { users ->
+                    val activeId = activeAccount.value?.id
+                    val filteredUsers = users.filter { it.id != activeId }
+                    DatabaseSearchResults(users = filteredUsers)
+                }
+            }
+            2 -> { // Groups: search public groups by title
+                repository.searchGroups(clean).map { groups ->
+                    DatabaseSearchResults(groups = groups.filter { !it.isBlocked })
+                }
+            }
+            3 -> { // Channels: search public channels by title
+                repository.searchChannels(clean).map { channels ->
+                    DatabaseSearchResults(channels = channels.filter { !it.isBlocked })
+                }
+            }
+            4 -> { // Bots: search bots by @username or nickname/name
+                repository.searchBots(clean).map { dbBots ->
+                    val registered = com.example.ui.botapi.BotRegistry.getAllBots().map { b ->
+                        BotSearchResult(
+                            id = b.id,
+                            name = b.name,
+                            username = "@${b.id}",
+                            description = b.description,
+                            category = b.category
+                        )
+                    }
+                    val fromDb = dbBots.map { b ->
+                        BotSearchResult(
+                            id = b.id,
+                            name = b.title,
+                            username = "@${b.id.removePrefix("@")}",
+                            description = b.lastMessage,
+                            category = "Bot"
+                        )
+                    }
+                    val allBots = (registered + fromDb).distinctBy { it.id }
+                        .filter {
+                            it.name.contains(clean, ignoreCase = true) ||
+                            it.username.contains(clean, ignoreCase = true) ||
+                            it.id.contains(clean, ignoreCase = true) ||
+                            it.description.contains(clean, ignoreCase = true)
+                        }
+                    DatabaseSearchResults(bots = allBots)
+                }
+            }
+            else -> { // All: search all public channels/groups by title, bots by @username or nickname, user accounts by @username or nickname
+                kotlinx.coroutines.flow.combine(
+                    repository.searchChannels(clean),
+                    repository.searchGroups(clean),
+                    repository.searchBots(clean),
+                    repository.searchAccounts(clean)
+                ) { channels, groups, dbBots, users ->
+                    val activeId = activeAccount.value?.id
+                    val filteredUsers = users.filter { it.id != activeId }
+                    val registered = com.example.ui.botapi.BotRegistry.getAllBots().map { b ->
+                        BotSearchResult(
+                            id = b.id,
+                            name = b.name,
+                            username = "@${b.id}",
+                            description = b.description,
+                            category = b.category
+                        )
+                    }
+                    val fromDb = dbBots.map { b ->
+                        BotSearchResult(
+                            id = b.id,
+                            name = b.title,
+                            username = "@${b.id.removePrefix("@")}",
+                            description = b.lastMessage,
+                            category = "Bot"
+                        )
+                    }
+                    val allBots = (registered + fromDb).distinctBy { it.id }
+                        .filter {
+                            it.name.contains(clean, ignoreCase = true) ||
+                            it.username.contains(clean, ignoreCase = true) ||
+                            it.id.contains(clean, ignoreCase = true) ||
+                            it.description.contains(clean, ignoreCase = true)
+                        }
+                    DatabaseSearchResults(
+                        users = filteredUsers,
+                        channels = channels.filter { !it.isBlocked },
+                        groups = groups.filter { !it.isBlocked },
+                        bots = allBots
+                    )
+                }
+            }
         }
     }
 }

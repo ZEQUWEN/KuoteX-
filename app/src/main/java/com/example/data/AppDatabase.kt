@@ -34,6 +34,12 @@ interface UserDao {
     @Query("SELECT * FROM accounts")
     fun getAllAccounts(): Flow<List<UserAccount>>
 
+    @Query("SELECT * FROM accounts WHERE displayName LIKE '%' || :query || '%' OR username LIKE '%' || :query || '%' OR username LIKE '%@' || :query || '%'")
+    fun searchAccounts(query: String): Flow<List<UserAccount>>
+
+    @Query("SELECT * FROM accounts WHERE displayName LIKE '%' || :query || '%' OR username LIKE '%' || :query || '%' OR username LIKE '%@' || :query || '%'")
+    suspend fun searchAccountsSync(query: String): List<UserAccount>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAccount(account: UserAccount)
     
@@ -63,6 +69,20 @@ interface ChatDao {
     @Query("SELECT * FROM chats WHERE id = :chatId LIMIT 1")
     suspend fun getChatById(chatId: String): Chat?
 
+    @Query("SELECT * FROM chats WHERE (title LIKE '%' || :query || '%' OR lastMessage LIKE '%' || :query || '%') ORDER BY lastMessageTimestamp DESC")
+    fun searchChats(query: String): Flow<List<Chat>>
+
+    @Query("SELECT * FROM chats WHERE isChannel = 1 AND title LIKE '%' || :query || '%' ORDER BY lastMessageTimestamp DESC")
+    fun searchChannels(query: String): Flow<List<Chat>>
+
+    @Query("SELECT * FROM chats WHERE isGroup = 1 AND title LIKE '%' || :query || '%' ORDER BY lastMessageTimestamp DESC")
+    fun searchGroups(query: String): Flow<List<Chat>>
+
+    @Query("SELECT * FROM chats WHERE (isChannel = 1 OR isGroup = 1) AND title LIKE '%' || :query || '%' ORDER BY lastMessageTimestamp DESC")
+    fun searchPublicCommunities(query: String): Flow<List<Chat>>
+
+    @Query("SELECT * FROM chats WHERE isBot = 1 AND (title LIKE '%' || :query || '%' OR id LIKE '%' || :query || '%') ORDER BY lastMessageTimestamp DESC")
+    fun searchBots(query: String): Flow<List<Chat>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertChat(chat: Chat)
@@ -330,6 +350,15 @@ class MessengerRepository(
     val allContacts: Flow<List<Contact>> = contactDao.getAllContacts().map { list -> list.map { it.copy(name = CryptoManager.decrypt(it.name), phoneNumber = it.phoneNumber?.let { phone -> CryptoManager.decrypt(phone) }) } }
     val undeliveredMessagesCount: Flow<Int> = messageDao.getUndeliveredMessagesCount()
     val undeliveredMessages: Flow<List<Message>> = messageDao.getUndeliveredMessages()
+
+    fun searchAccounts(query: String): Flow<List<UserAccount>> = userDao.searchAccounts(query)
+    suspend fun searchAccountsSync(query: String): List<UserAccount> = userDao.searchAccountsSync(query)
+    fun searchChats(query: String): Flow<List<Chat>> = chatDao.searchChats(query)
+    fun searchChannels(query: String): Flow<List<Chat>> = chatDao.searchChannels(query)
+    fun searchGroups(query: String): Flow<List<Chat>> = chatDao.searchGroups(query)
+    fun searchPublicCommunities(query: String): Flow<List<Chat>> = chatDao.searchPublicCommunities(query)
+    fun searchBots(query: String): Flow<List<Chat>> = chatDao.searchBots(query)
+    fun searchCustomBots(query: String): Flow<List<CustomBotEntity>> = botDao.searchCustomBots(query)
 
 
     init {

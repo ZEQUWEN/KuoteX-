@@ -17,6 +17,9 @@ interface BotDao {
     @Query("SELECT * FROM custom_bots WHERE id = :id LIMIT 1")
     suspend fun getCustomBotById(id: String): CustomBotEntity?
 
+    @Query("SELECT * FROM custom_bots WHERE name LIKE '%' || :query || '%' OR id LIKE '%' || :query || '%'")
+    fun searchCustomBots(query: String): Flow<List<CustomBotEntity>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCustomBot(bot: CustomBotEntity)
 

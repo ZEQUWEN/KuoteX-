@@ -711,19 +711,20 @@ fun ChatListScreen(viewModel: AppViewModel, navController: NavController, isStor
     val drafts by viewModel.drafts.collectAsStateWithLifecycle()
     val typingChats by viewModel.typingChats.collectAsState()
     val userPresences by viewModel.userPresences.collectAsStateWithLifecycle()
-    var searchQuery by remember { mutableStateOf("") }
+    val tabSearchQueries = remember { mutableStateMapOf<Int, String>() }
     var selectedTabIndex by remember { mutableStateOf(0) }
     val tabs = listOf("All", "Personal", "Groups", "Channels", "Bots")
+    val currentQuery = tabSearchQueries[selectedTabIndex] ?: ""
 
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     val pullRefreshState = rememberPullToRefreshState()
 
-    
     val filteredChats = chats.filter { 
         !it.isBlocked &&
         !it.isArchived &&
-        (it.title.contains(searchQuery, ignoreCase = true) || 
-        it.lastMessage.contains(searchQuery, ignoreCase = true)) &&
+        (currentQuery.isBlank() || 
+        it.title.contains(currentQuery, ignoreCase = true) || 
+        it.lastMessage.contains(currentQuery, ignoreCase = true)) &&
         when (selectedTabIndex) {
             1 -> !it.isGroup && !it.isChannel && !it.isBot // Personal
             2 -> it.isGroup
@@ -733,44 +734,9 @@ fun ChatListScreen(viewModel: AppViewModel, navController: NavController, isStor
         }
     }
 
-    val allAccounts by viewModel.accounts.collectAsStateWithLifecycle(initialValue = emptyList())
-    val globalSearchChats = remember(searchQuery, allAccounts) {
-        if (searchQuery.isBlank()) emptyList()
-        else {
-            val localIds = chats.map { it.id }.toSet()
-            val simulated = listOf(
-                Chat("g1", "OpenAI Devs", isGroup = true, lastMessage = "", unreadCount = 0),
-                Chat("g2", "Android Kotlin", isGroup = true, lastMessage = "", unreadCount = 0),
-                Chat("c5", "Android News", isChannel = true, lastMessage = "", unreadCount = 0),
-                Chat("u10", "@durov", isBot = false, isGroup = false, lastMessage = "", unreadCount = 0),
-                Chat("u11", "Alice Hacker", isBot = false, isGroup = false, lastMessage = "", unreadCount = 0)
-            )
-            // Добавляем аккаунты из "базы данных сервера" (используем SQLite для имитации)
-            val query = searchQuery.trim().removePrefix("@")
-            
-            // Фильтрация симулированных чатов
-            val filteredSimulated = simulated.filter { 
-                it.title.contains(query, true) && !localIds.contains(it.id)
-            }
-            
-            // Фильтрация аккаунтов по имени (displayName) или никнейму/username
-            val filteredAccounts = allAccounts.filter {
-                (it.displayName.contains(query, true) || 
-                 it.username.removePrefix("@").contains(query, true)) && 
-                !localIds.contains(it.id)
-            }.map { 
-                Chat(
-                    id = it.id, 
-                    title = if (it.displayName.isNotBlank()) it.displayName else it.username,
-                    isBot = false, 
-                    isGroup = false, 
-                    lastMessage = ""
-                ) 
-            }
-            
-            (filteredSimulated + filteredAccounts).distinctBy { it.id }
-        }
-    }
+    val dbSearchResults by remember(currentQuery, selectedTabIndex) {
+        viewModel.searchDatabase(currentQuery, selectedTabIndex)
+    }.collectAsStateWithLifecycle(initialValue = DatabaseSearchResults())
     
     Column(modifier = Modifier.fillMaxSize()) {
         StoriesPanel(
@@ -785,19 +751,42 @@ fun ChatListScreen(viewModel: AppViewModel, navController: NavController, isStor
             viewModel = viewModel
         )
         
+        val searchPlaceholder = when (selectedTabIndex) {
+            0 -> "Поиск по всем чатам, каналам, ботам, людям..."
+            1 -> "Поиск личных чатов и пользователей..."
+            2 -> "Поиск групп по названию..."
+            3 -> "Поиск каналов по названию..."
+            4 -> "Поиск ботов по @username или названию..."
+            else -> "Поиск чатов..."
+        }
+
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
-                placeholder = { Text("Search chats...", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                value = currentQuery,
+                onValueChange = { tabSearchQueries[selectedTabIndex] = it },
+                placeholder = { 
+                    Text(
+                        searchPlaceholder, 
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    ) 
+                },
                 leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                trailingIcon = {
+                    if (currentQuery.isNotEmpty()) {
+                        IconButton(onClick = { tabSearchQueries[selectedTabIndex] = "" }) {
+                            Icon(Icons.Filled.Close, contentDescription = "Очистить поиск", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                },
                 modifier = Modifier
                     .weight(1f)
                     .semantics {
-                        contentDescription = "Поиск по чатам и сообщениям"
+                        contentDescription = "Поиск в папке ${tabs.getOrElse(selectedTabIndex) { "Все" }}"
                     },
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
@@ -855,7 +844,7 @@ fun ChatListScreen(viewModel: AppViewModel, navController: NavController, isStor
         ) {
             LazyColumn(modifier = Modifier.fillMaxSize()) {
 
-            if (searchQuery.isBlank() && selectedTabIndex == 0) {
+            if (currentQuery.isBlank() && selectedTabIndex == 0) {
                 item {
                     val archivedCount = chats.count { it.isArchived && !it.isBlocked }
                     if (archivedCount > 0) {
@@ -886,7 +875,17 @@ fun ChatListScreen(viewModel: AppViewModel, navController: NavController, isStor
                 }
             }
 
-
+            if (currentQuery.isNotBlank() && filteredChats.isNotEmpty() && !dbSearchResults.isEmpty) {
+                item {
+                    Text(
+                        "Чаты и сообщения",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 4.dp)
+                    )
+                }
+            }
 
             items(filteredChats, key = { it.id }) { chat ->
                 SwipeableChatListItem(
@@ -908,27 +907,147 @@ fun ChatListScreen(viewModel: AppViewModel, navController: NavController, isStor
                 )
             }
 
-            if (globalSearchChats.isNotEmpty()) {
-                item {
-                    Text(
-                        "Global Search Results",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp)
-                    )
+            // --- Database Search Results ---
+            if (currentQuery.isNotBlank()) {
+                val nonLocalChannels = dbSearchResults.channels.filter { ch -> filteredChats.none { it.id == ch.id } }
+                val nonLocalGroups = dbSearchResults.groups.filter { gr -> filteredChats.none { it.id == gr.id } }
+                val nonLocalBots = dbSearchResults.bots.filter { b -> filteredChats.none { it.id == b.id } }
+                val foundUsers = dbSearchResults.users
+
+                // Channels section
+                if (nonLocalChannels.isNotEmpty()) {
+                    item {
+                        DatabaseSearchSectionHeader(
+                            title = "Публичные каналы",
+                            icon = Icons.Filled.Campaign,
+                            count = nonLocalChannels.size
+                        )
+                    }
+                    items(nonLocalChannels, key = { "db_channel_${it.id}" }) { channel ->
+                        ChannelSearchResultItem(
+                            channel = channel,
+                            onClick = {
+                                focusManager.clearFocus()
+                                keyboardController?.hide()
+                                viewModel.openOrCreateChat(channel)
+                                navController.navigate("chat/${channel.id}")
+                            }
+                        )
+                    }
                 }
-                items(globalSearchChats) { chat ->
-                    ChatListItem(chat = chat, isTyping = typingChats.contains(chat.id), onClick = { 
-                        focusManager.clearFocus()
-                        keyboardController?.hide()
-                        viewModel.addBot(chat)
-                        navController.navigate("chat/${chat.id}") 
-                    }, onAvatarClick = { 
-                        focusManager.clearFocus()
-                        keyboardController?.hide()
-                        viewModel.addBot(chat)
-                        navController.navigate("profile/${chat.id}") 
-                    })
+
+                // Groups section
+                if (nonLocalGroups.isNotEmpty()) {
+                    item {
+                        DatabaseSearchSectionHeader(
+                            title = "Публичные группы",
+                            icon = Icons.Filled.Group,
+                            count = nonLocalGroups.size
+                        )
+                    }
+                    items(nonLocalGroups, key = { "db_group_${it.id}" }) { group ->
+                        GroupSearchResultItem(
+                            group = group,
+                            onClick = {
+                                focusManager.clearFocus()
+                                keyboardController?.hide()
+                                viewModel.openOrCreateChat(group)
+                                navController.navigate("chat/${group.id}")
+                            }
+                        )
+                    }
+                }
+
+                // Bots section
+                if (nonLocalBots.isNotEmpty()) {
+                    item {
+                        DatabaseSearchSectionHeader(
+                            title = "Боты KuoteX",
+                            icon = Icons.Filled.SmartToy,
+                            count = nonLocalBots.size
+                        )
+                    }
+                    items(nonLocalBots, key = { "db_bot_${it.id}" }) { bot ->
+                        BotSearchResultItem(
+                            bot = bot,
+                            onClick = {
+                                focusManager.clearFocus()
+                                keyboardController?.hide()
+                                viewModel.openOrCreateBotChat(bot)
+                                navController.navigate("chat/${bot.id}")
+                            }
+                        )
+                    }
+                }
+
+                // Users section
+                if (foundUsers.isNotEmpty()) {
+                    item {
+                        DatabaseSearchSectionHeader(
+                            title = if (selectedTabIndex == 1) "Найденные пользователи" else "Пользователи",
+                            icon = Icons.Filled.Person,
+                            count = foundUsers.size
+                        )
+                    }
+                    items(foundUsers, key = { "db_user_${it.id}" }) { user ->
+                        UserSearchResultItem(
+                            user = user,
+                            onClick = {
+                                focusManager.clearFocus()
+                                keyboardController?.hide()
+                                viewModel.openOrCreateUserChat(user)
+                                navController.navigate("chat/${user.id}")
+                            },
+                            onAvatarClick = {
+                                focusManager.clearFocus()
+                                keyboardController?.hide()
+                                viewModel.openOrCreateUserChat(user)
+                                navController.navigate("profile/${user.id}")
+                            }
+                        )
+                    }
+                }
+
+                // Empty state if nothing matches locally or in the database
+                if (filteredChats.isEmpty() && dbSearchResults.isEmpty) {
+                    item {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 48.dp, horizontal = 24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.SearchOff,
+                                contentDescription = null,
+                                modifier = Modifier.size(64.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = "Ничего не найдено",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            val hintText = when (selectedTabIndex) {
+                                0 -> "Попробуйте изменить название канала, группы, @username или имя"
+                                1 -> "Попробуйте поискать пользователя по @username или имени"
+                                2 -> "Попробуйте ввести другое название группы"
+                                3 -> "Попробуйте ввести другое название канала"
+                                4 -> "Попробуйте ввести @username или имя бота"
+                                else -> "Попробуйте изменить поисковый запрос"
+                            }
+                            Text(
+                                text = hintText,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -1186,6 +1305,341 @@ fun ChatListItem(
                 Text(chat.unreadCount.toString(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimary)
             }
         }
+    }
+}
+
+@Composable
+fun DatabaseSearchSectionHeader(
+    title: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    count: Int
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Spacer(modifier = Modifier.weight(1f))
+        Surface(
+            color = MaterialTheme.colorScheme.primaryContainer,
+            shape = CircleShape
+        ) {
+            Text(
+                text = count.toString(),
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+            )
+        }
+    }
+}
+
+@Composable
+fun UserSearchResultItem(
+    user: UserAccount,
+    onClick: () -> Unit,
+    onAvatarClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primaryContainer)
+                .clickable(onClick = onAvatarClick),
+            contentAlignment = Alignment.Center
+        ) {
+            if (user.profilePicUrl.isNotBlank()) {
+                AsyncImage(
+                    model = user.profilePicUrl,
+                    contentDescription = user.displayName,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Text(
+                    text = (user.displayName.ifBlank { user.username }).take(1).uppercase(),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
+        }
+        Spacer(modifier = Modifier.width(14.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = user.displayName.ifBlank { user.username },
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+            }
+            Spacer(modifier = Modifier.height(2.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = if (user.username.startsWith("@")) user.username else "@${user.username}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Medium
+                )
+                if (user.bio.isNotBlank()) {
+                    Text(
+                        text = " • ${user.bio}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+        Icon(
+            imageVector = Icons.Filled.Chat,
+            contentDescription = "Написать",
+            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+            modifier = Modifier.size(20.dp)
+        )
+    }
+}
+
+@Composable
+fun BotSearchResultItem(
+    bot: BotSearchResult,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.secondaryContainer),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Filled.SmartToy,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+        Spacer(modifier = Modifier.width(14.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = bot.name,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Surface(
+                    color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f),
+                    shape = RoundedCornerShape(4.dp)
+                ) {
+                    Text(
+                        text = "BOT",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(2.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = if (bot.username.startsWith("@")) bot.username else "@${bot.username}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.secondary,
+                    fontWeight = FontWeight.Medium
+                )
+                if (bot.description.isNotBlank()) {
+                    Text(
+                        text = " • ${bot.description}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+        Icon(
+            imageVector = Icons.Filled.ChevronRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+            modifier = Modifier.size(20.dp)
+        )
+    }
+}
+
+@Composable
+fun ChannelSearchResultItem(
+    channel: Chat,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.tertiaryContainer),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Campaign,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+        Spacer(modifier = Modifier.width(14.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = channel.title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Surface(
+                    color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f),
+                    shape = RoundedCornerShape(4.dp)
+                ) {
+                    Text(
+                        text = "Канал",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.tertiary,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = channel.lastMessage.ifBlank { "Публичный канал KuoteX" },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
+        }
+        Icon(
+            imageVector = Icons.Filled.ChevronRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+            modifier = Modifier.size(20.dp)
+        )
+    }
+}
+
+@Composable
+fun GroupSearchResultItem(
+    group: Chat,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primaryContainer),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Group,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+        Spacer(modifier = Modifier.width(14.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = group.title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Surface(
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                    shape = RoundedCornerShape(4.dp)
+                ) {
+                    Text(
+                        text = "Группа",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = group.lastMessage.ifBlank { "Публичная группа сообщества" },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
+        }
+        Icon(
+            imageVector = Icons.Filled.ChevronRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+            modifier = Modifier.size(20.dp)
+        )
     }
 }
 
