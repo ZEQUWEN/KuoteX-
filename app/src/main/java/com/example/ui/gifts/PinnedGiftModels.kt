@@ -47,6 +47,25 @@ data class PinnedGift(
     val parsedAccentColor: Color
         get() = parseHexColor(accentGlowHex, Color(0xFF8B5CF6))
 
+    fun toUserGiftDoc(targetUserId: String = receiverId): KuoteXUserGiftDoc {
+        return KuoteXUserGiftDoc(
+            userGiftId = id,
+            catalogGiftId = catalogGiftId,
+            senderId = senderName,
+            receiverId = targetUserId,
+            isPinnedToHeader = true,
+            pinOrderIndex = pinOrderIndex,
+            upgradeLevel = upgradeLevel,
+            transferable = false,
+            message = message,
+            isAnonymous = senderName == "Аноним" || senderName == "anonymous",
+            acquiredAt = acquiredAt,
+            cachedTitle = title,
+            cachedEmoji = emojiIcon,
+            cachedColorHex = backdropColorHex
+        )
+    }
+
     companion object {
         private fun parseHexColor(hex: String?, fallback: Color): Color {
             if (hex.isNullOrBlank()) return fallback

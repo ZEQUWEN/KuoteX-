@@ -114,6 +114,15 @@ fun MyProfileScreen(viewModel: AppViewModel, navController: NavController) {
 
     val pinnedGiftsMap by com.example.data.ecosystem.KuoteXEcosystemFirestoreManager.pinnedGiftsMap.collectAsState()
     val catalogGifts by com.example.data.ecosystem.KuoteXEcosystemFirestoreManager.catalogGifts.collectAsState()
+
+    // Initialize gifts for current account if not already in ecosystem state
+    LaunchedEffect(activeAccount.id) {
+        if (!pinnedGiftsMap.containsKey(activeAccount.id) || pinnedGiftsMap[activeAccount.id].isNullOrEmpty()) {
+            val sampleDocs = com.example.ui.gifts.PinnedGift.samplePinnedGifts().map { it.toUserGiftDoc(activeAccount.id) }
+            com.example.data.ecosystem.KuoteXEcosystemFirestoreManager.initializeUserGiftsIfEmpty(activeAccount.id, sampleDocs)
+        }
+    }
+
     val userPinnedDocs = pinnedGiftsMap[activeAccount.id] ?: emptyList()
     val displayedPinnedGifts = remember(userPinnedDocs, catalogGifts) {
         if (userPinnedDocs.isNotEmpty()) {
