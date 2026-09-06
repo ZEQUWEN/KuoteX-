@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">NodeX</string>
+    <string name="app_name">KuoteX</string>
     <string name="google_app_id" translatable="false">1:372420700937:android:a1b2c3d4e5f6789012345678</string>
     <string name="gcm_defaultSenderId" translatable="false">372420700937</string>
     <string name="default_web_client_id" translatable="false">372420700937-dummy.apps.googleusercontent.com</string>

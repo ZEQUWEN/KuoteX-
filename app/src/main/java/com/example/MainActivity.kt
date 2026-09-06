@@ -19,7 +19,7 @@ import com.example.data.AppDatabase
 import com.example.data.MessengerRepository
 import com.example.ui.AppViewModel
 import com.example.ui.MainAppNavigation
-import com.example.ui.theme.NeonMessengerTheme
+import com.example.ui.theme.KuoteXTheme
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
@@ -273,7 +273,7 @@ val isDarkThemeEnabled by viewModel.isDarkThemeEnabled.collectAsState()
                 val finalCustomPrimary = if (disableNeon) null else primary
                 val finalCustomSecondary = if (disableNeon) null else secondary
 
-                NeonMessengerTheme(darkTheme = if (isAutoThemeEnabled) systemDarkTheme else isDarkThemeEnabled, customPrimary = finalCustomPrimary, customSecondary = finalCustomSecondary, themeOpacity = themeOpacity) {
+                KuoteXTheme(darkTheme = if (isAutoThemeEnabled) systemDarkTheme else isDarkThemeEnabled, customPrimary = finalCustomPrimary, customSecondary = finalCustomSecondary, themeOpacity = themeOpacity) {
                     Surface(
                         modifier = Modifier.fillMaxSize(),
                         color = androidx.compose.material3.MaterialTheme.colorScheme.background

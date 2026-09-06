@@ -179,7 +179,7 @@ fun ChannelAppearanceScreen(
                                 Column(modifier = Modifier.weight(1f)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Text(
-                                            text = "Neon Official",
+                                            text = "KuoteX Official",
                                             style = MaterialTheme.typography.titleMedium,
                                             fontWeight = FontWeight.Bold,
                                             color = currentPalette.primaryColor
@@ -232,7 +232,7 @@ fun ChannelAppearanceScreen(
                                             Spacer(Modifier.width(8.dp))
                                             Column {
                                                 Text(
-                                                    text = "Neon Messenger (KuoteX)",
+                                                    text = "KuoteX",
                                                     style = MaterialTheme.typography.labelSmall,
                                                     fontWeight = FontWeight.Bold,
                                                     color = currentPalette.primaryColor
@@ -264,7 +264,7 @@ fun ChannelAppearanceScreen(
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Text(
-                                            text = "14:20 • Neon Admin",
+                                            text = "14:20 • KuoteX Admin",
                                             style = MaterialTheme.typography.labelSmall,
                                             color = Color.White.copy(alpha = 0.5f),
                                             fontSize = 10.sp

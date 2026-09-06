@@ -8,7 +8,7 @@ import java.util.UUID
 import com.example.utils.MessageSanitizer
 
 /**
- * Interface representing a Bot in the Neon Messenger ecosystem.
+ * Interface representing a Bot in the KuoteX ecosystem.
  * Developers can implement this interface to create new bots.
  */
 data class BotCommand(val command: String, val description: String)

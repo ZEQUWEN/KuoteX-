@@ -27,7 +27,7 @@ class KuoteXApplication : Application(), ImageLoaderFactory {
         try {
             com.example.data.CryptoManager.init(this)
             net.sqlcipher.database.SQLiteDatabase.loadLibs(this)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.w("KuoteXApplication", "Security subsystems init: ${e.message}")
         }
 

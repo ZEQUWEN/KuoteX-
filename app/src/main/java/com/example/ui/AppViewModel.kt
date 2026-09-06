@@ -793,7 +793,7 @@ class AppViewModel(
                     repository.insertAccount(UserAccount("987654321", "@synth_wave", "Synth Wave", "https://i.pravatar.cc/150?img=33", false, false, phoneNumber = "+7 (999) 111-22-33"))
                     repository.insertAccount(UserAccount("456789123", "@cyber_punk", "Cyber P.", "https://i.pravatar.cc/150?img=55", false, false, phoneNumber = "+7 (777) 444-55-66"))
                     
-                    repository.insertChat(Chat("c1", "Neon Coders", isGroup = true, lastMessage = "Let's build in Compose! \uD83D\uDD25", unreadCount = 4))
+                    repository.insertChat(Chat("c1", "KuoteX Coders", isGroup = true, lastMessage = "Let's build in Compose! \uD83D\uDD25", unreadCount = 4))
                     repository.insertChat(Chat("botfather", "BotFather", isBot = true, lastMessage = "", unreadCount = 0))
                     repository.insertChat(Chat("c2", "Cyberpunk Daily", isChannel = true, lastMessage = "", unreadCount = 0))
                     repository.insertChat(Chat("c3", "SynthBot", isBot = true, lastMessage = "", unreadCount = 0))
@@ -802,7 +802,13 @@ class AppViewModel(
                     repository.insertGroupMember(GroupMember("c1", "u1", "Sarah Connor", isAdmin = true))
                     repository.insertGroupMember(GroupMember("c1", "u2", "John Doe", isAdmin = false))
                     repository.insertGroupMember(GroupMember("c1", "u3", "Crypto Alpha", isAdmin = false))
-                    repository.insertGroupMember(GroupMember("c1", "u4", "Neon Hacker", isAdmin = false))
+                    repository.insertGroupMember(GroupMember("c1", "u4", "KuoteX Hacker", isAdmin = false))
+                } else {
+                    // Seamlessly migrate legacy chat title if present
+                    val c1 = repository.allChats.firstOrNull()?.find { it.id == "c1" }
+                    if (c1 != null && c1.title == "Neon Coders") {
+                        repository.insertChat(c1.copy(title = "KuoteX Coders"))
+                    }
                 }
         }
         // Cache Manager Service
@@ -1515,7 +1521,12 @@ class AppViewModel(
     }
     fun importTheme(themeCode: String) {
         try {
-            val parts = themeCode.substringAfter("Neon Messenger Theme Code: ").split("-")
+            val rawCode = when {
+                themeCode.contains("KuoteX Theme Code: ") -> themeCode.substringAfter("KuoteX Theme Code: ")
+                themeCode.contains("Neon Messenger Theme Code: ") -> themeCode.substringAfter("Neon Messenger Theme Code: ")
+                else -> themeCode
+            }
+            val parts = rawCode.split("-")
             if (parts.size >= 3) {
                 val themeName = parts[0]
                 val primaryStr = parts[1]

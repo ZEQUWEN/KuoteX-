@@ -25,7 +25,7 @@ object ChannelCustomizationManager {
                 boostsRequiredForNextLevel = 35,
                 hasVotedBoost = true,
                 subscriberCount = 12450,
-                description = "Главный канал разработки Neon Messenger (KuoteX). Ежедневные инсайды и обновления."
+                description = "Главный канал разработки KuoteX. Ежедневные инсайды и обновления."
             ),
             "c5" to ChannelCustomization(
                 chatId = "c5",
@@ -63,8 +63,8 @@ object ChannelCustomizationManager {
                     id = "poll_neon_1",
                     chatId = "c1",
                     creatorId = "admin",
-                    creatorName = "Neon Admin",
-                    question = "Какое новое оформление каналов в Neon Messenger вам нравится больше всего? ✨",
+                    creatorName = "KuoteX Admin",
+                    question = "Какое новое оформление каналов в KuoteX вам нравится больше всего? ✨",
                     options = listOf(
                         PollOption(0, "🔥 Анимированные эмодзи в шапке", 142, 0.44f),
                         PollOption(1, "🎨 Градиенты цвета профиля и цитат", 98, 0.31f),
@@ -81,7 +81,7 @@ object ChannelCustomizationManager {
                     id = "poll_neon_quiz",
                     chatId = "c1",
                     creatorId = "admin",
-                    creatorName = "Neon Quiz Master",
+                    creatorName = "KuoteX Quiz Master",
                     question = "Викторина: Какой максимальный уровень буста доступен для каналов в Telegram?",
                     options = listOf(
                         PollOption(0, "Уровень 5", 12, 0.10f),
@@ -107,7 +107,7 @@ object ChannelCustomizationManager {
                 BoosterUser("u1", "Pavel Durov", "https://picsum.photos/seed/durov/100", 10, 4, System.currentTimeMillis() - 3600000),
                 BoosterUser("u2", "Alex KuoteX", "https://picsum.photos/seed/alex/100", 5, 3, System.currentTimeMillis() - 7200000),
                 BoosterUser("u3", "Elena Star", "https://picsum.photos/seed/elena/100", 3, 2, System.currentTimeMillis() - 14400000),
-                BoosterUser("u4", "Neon VIP", "https://picsum.photos/seed/vip/100", 2, 1, System.currentTimeMillis() - 28800000)
+                BoosterUser("u4", "KuoteX VIP", "https://picsum.photos/seed/vip/100", 2, 1, System.currentTimeMillis() - 28800000)
             )
         )
     )

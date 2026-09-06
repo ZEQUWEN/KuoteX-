@@ -74,7 +74,7 @@ private val LightColorScheme = lightColorScheme(
 )
 
 @Composable
-fun NeonMessengerTheme(
+fun KuoteXTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     customPrimary: androidx.compose.ui.graphics.Color? = null,
     customSecondary: androidx.compose.ui.graphics.Color? = null,
@@ -133,3 +133,20 @@ fun NeonMessengerTheme(
         content = content
     )
 }
+
+@Composable
+fun NeonMessengerTheme(
+    darkTheme: Boolean = isSystemInDarkTheme(),
+    customPrimary: androidx.compose.ui.graphics.Color? = null,
+    customSecondary: androidx.compose.ui.graphics.Color? = null,
+    themeOpacity: Float = 1.0f,
+    dynamicColor: Boolean = false,
+    content: @Composable () -> Unit
+) = KuoteXTheme(
+    darkTheme = darkTheme,
+    customPrimary = customPrimary,
+    customSecondary = customSecondary,
+    themeOpacity = themeOpacity,
+    dynamicColor = dynamicColor,
+    content = content
+)

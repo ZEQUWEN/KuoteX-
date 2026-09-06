@@ -482,7 +482,7 @@ fun DeveloperAnalyticsDebugScreen(viewModel: AppViewModel, navController: NavCon
                             isHost = false,
                             joinDurationMs = (150L..2500L).random(),
                             initialViewerCount = (10..500).random(),
-                            streamTitle = "Cyber Neon Broadcast #42"
+                            streamTitle = "KuoteX Live Broadcast #42"
                         )
                         showTestToolsSheet = false
                     },

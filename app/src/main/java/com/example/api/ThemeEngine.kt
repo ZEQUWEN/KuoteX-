@@ -3,7 +3,7 @@ package com.example.api
 import androidx.compose.ui.graphics.Color
 
 /**
- * Движок кастомных тем для Neon Messenger.
+ * Движок кастомных тем для KuoteX.
  * Симулирует поддержку форматов .attheme (цветовые пары и обои).
  * Референс: https://core.telegram.org/themes
  */

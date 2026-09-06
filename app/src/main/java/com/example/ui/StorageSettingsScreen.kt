@@ -140,7 +140,7 @@ fun SettingsStorageScreen(viewModel: AppViewModel, navController: NavController)
                                 Spacer(modifier = Modifier.height(16.dp))
                                 NeonProgressBar(progress = clearProgress)
                             } else {
-                                Text("Найдено ${formatBytes(duplicateSizeFound)} дубликатов файлов кэша Neon Messenger. Очистить их для освобождения места?")
+                                Text("Найдено ${formatBytes(duplicateSizeFound)} дубликатов файлов кэша KuoteX. Очистить их для освобождения места?")
                             }
                         }
                     },
@@ -677,7 +677,7 @@ fun StorageUsageScreen(viewModel: AppViewModel, navController: NavController) {
                     
                     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            text = "Neon Messenger занимает $displayAppUsagePercent% места на устройстве.",
+                            text = "KuoteX занимает $displayAppUsagePercent% места на устройстве.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

@@ -372,7 +372,7 @@ fun MainAppNavigation(viewModel: AppViewModel = koinViewModel()) {
                                                             }
                                                         } else {
                                                             Text(
-                                                                text = "Neon Messenger",
+                                                                text = "KuoteX",
                                                                 fontWeight = FontWeight.Bold,
                                                                 style = MaterialTheme.typography.titleLarge
                                                             )
@@ -1456,7 +1456,7 @@ fun SettingsScreen(viewModel: AppViewModel) {
                         OutlinedTextField(
                             value = importCode,
                             onValueChange = { importCode = it },
-                            label = { Text("Neon Messenger Theme Code") },
+                            label = { Text("KuoteX Theme Code") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true
                         )
@@ -1499,7 +1499,7 @@ fun SettingsScreen(viewModel: AppViewModel) {
                     onClick = {
                         val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
                             type = "text/plain"
-                            putExtra(android.content.Intent.EXTRA_TEXT, "Neon Messenger Theme Code: ${theme.name}-${customPrimary ?: "def"}-${customSecondary ?: "def"}")
+                            putExtra(android.content.Intent.EXTRA_TEXT, "KuoteX Theme Code: ${theme.name}-${customPrimary ?: "def"}-${customSecondary ?: "def"}")
                         }
                         context.startActivity(android.content.Intent.createChooser(intent, "Export Theme Layout"))
                     }
@@ -2230,8 +2230,8 @@ fun AccountDrawerContent(viewModel: AppViewModel, onCloseDrawer: () -> Unit, nav
             }
             item {
                 NavigationDrawerItem(
-                    icon = { Icon(Icons.Filled.Help, "Neon Messenger Features") },
-                    label = { Text("Neon Messenger Features") },
+                    icon = { Icon(Icons.Filled.Help, "KuoteX Features") },
+                    label = { Text("KuoteX Features") },
                     selected = false,
                     onClick = { onCloseDrawer() }
                 )

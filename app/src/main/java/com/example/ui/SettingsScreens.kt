@@ -345,7 +345,7 @@ fun SettingsMenuScreen(viewModel: AppViewModel, navController: NavController) {
                 TopAppBar(
                     title = { 
                         Text(
-                            "Neon Messenger",
+                            "KuoteX",
                             modifier = Modifier.alpha(1f - scrollBehavior.state.collapsedFraction)
                         ) 
                     },
@@ -1148,7 +1148,7 @@ fun SettingsGeneralScreen(viewModel: AppViewModel, navController: NavController)
                             onClick = {
                                 viewModel.triggerSimulatedPushNotification(
                                     chatId = "c1",
-                                    senderName = "Neon Coders",
+                                    senderName = "KuoteX Coders",
                                     text = "Привет! Загляни в ветку разработки Compose 🚀",
                                     isMention = false,
                                     context = context
@@ -1490,7 +1490,7 @@ fun DevicesScreen(navController: androidx.navigation.NavController) {
     Scaffold(topBar = { TopAppBar(title = { Text("Devices") }, navigationIcon = { IconButton(onClick = { navController.popBackStack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } }) }) { padding -> 
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
             Text("Active Sessions", modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
-            SettingsListItem(icon = { Icon(Icons.Filled.PhoneAndroid, null) }, title = "Neon Messenger Android", subtitle = "Online • Current device", onClick = {})
+            SettingsListItem(icon = { Icon(Icons.Filled.PhoneAndroid, null) }, title = "KuoteX Android", subtitle = "Online • Current device", onClick = {})
             Spacer(modifier = Modifier.height(16.dp))
             Button(onClick = { }, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) {
                 Text("Terminate All Other Sessions")
