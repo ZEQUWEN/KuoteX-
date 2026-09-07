@@ -51,7 +51,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -440,6 +442,7 @@ fun PinnedGiftDetailBottomSheet(
     if (gift == null) return
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val coroutineScope = rememberCoroutineScope()
     val formattedDate = remember(gift.acquiredAt) {
         val sdf = SimpleDateFormat("dd MMMM yyyy, HH:mm", Locale("ru"))
         sdf.format(Date(gift.acquiredAt))
@@ -462,7 +465,14 @@ fun PinnedGiftDetailBottomSheet(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End
             ) {
-                IconButton(onClick = onDismiss) {
+                IconButton(onClick = {
+                    coroutineScope.launch {
+                        try {
+                            sheetState.hide()
+                        } catch (_: Exception) {}
+                        onDismiss()
+                    }
+                }) {
                     Icon(Icons.Filled.Close, contentDescription = "Закрыть", tint = Color.LightGray)
                 }
             }
@@ -568,8 +578,13 @@ fun PinnedGiftDetailBottomSheet(
             if (gift.upgradeLevel < gift.maxUpgradeLevel) {
                 Button(
                     onClick = {
-                        onUpgradeClick(gift)
-                        onDismiss()
+                        coroutineScope.launch {
+                            try {
+                                sheetState.hide()
+                            } catch (_: Exception) {}
+                            onUpgradeClick(gift)
+                            onDismiss()
+                        }
                     },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -670,6 +685,7 @@ fun CollectibleGiftDetailBottomSheet(
     onDismiss: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val coroutineScope = rememberCoroutineScope()
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -757,8 +773,13 @@ fun CollectibleGiftDetailBottomSheet(
             if (isOwner) {
                 Button(
                     onClick = {
-                        onPinToggle(gift)
-                        onDismiss()
+                        coroutineScope.launch {
+                            try {
+                                sheetState.hide()
+                            } catch (_: Exception) {}
+                            onPinToggle(gift)
+                            onDismiss()
+                        }
                     },
                     modifier = Modifier
                         .fillMaxWidth()

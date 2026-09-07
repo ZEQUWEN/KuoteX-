@@ -400,7 +400,10 @@ fun ProfileScreen(
                                     leadingIcon = { Icon(Icons.Filled.ShoppingBag, contentDescription = null, tint = Color(0xFFC084FC)) },
                                     onClick = {
                                         showOptionsMenu = false
-                                        navController.navigate("gifts_marketplace?userId=$chatId&userName=${chat.title}")
+                                        scope.launch {
+                                            kotlinx.coroutines.delay(30)
+                                            navController.navigate("gifts_marketplace?userId=$chatId&userName=${chat.title}")
+                                        }
                                     }
                                 )
                                 DropdownMenuItem(

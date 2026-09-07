@@ -358,6 +358,7 @@ fun GiftMarketplaceScreen(
             targetUserName = targetUserName ?: "Себе в профиль",
             onDismiss = { selectedCatalogGiftForBuy = null },
             onConfirmPurchase = { message, isAnonymous, pinToHeader ->
+                selectedCatalogGiftForBuy = null
                 scope.launch {
                     val activeUser = currentUser?.userId ?: "me"
                     val receiver = targetUserId ?: activeUser
@@ -376,7 +377,6 @@ fun GiftMarketplaceScreen(
                     } else {
                         snackbarHostState.showSnackbar("Ошибка: ${result.exceptionOrNull()?.message}")
                     }
-                    selectedCatalogGiftForBuy = null
                 }
             }
         )
@@ -390,17 +390,18 @@ fun GiftMarketplaceScreen(
             targetUserId = targetUserId ?: "me",
             onDismiss = { selectedCollectibleForBuy = null },
             onConfirmPurchase = {
+                val toBuy = collectible
+                selectedCollectibleForBuy = null
                 scope.launch {
                     val activeUser = currentUser?.userId ?: "me"
-                    val result = ecosystemManager.purchaseCollectibleGift(activeUser, collectible.id)
+                    val result = ecosystemManager.purchaseCollectibleGift(activeUser, toBuy.id)
                     if (result.isSuccess) {
                         // Pin to username option
                         ecosystemManager.pinCollectibleToUsername(activeUser, result.getOrNull())
-                        snackbarHostState.showSnackbar("Коллекционный подарок #${collectible.serialNumber} куплен и закреплен!")
+                        snackbarHostState.showSnackbar("Коллекционный подарок #${toBuy.serialNumber} куплен и закреплен!")
                     } else {
                         snackbarHostState.showSnackbar("Ошибка покупки: ${result.exceptionOrNull()?.message}")
                     }
-                    selectedCollectibleForBuy = null
                 }
             }
         )
@@ -573,6 +574,7 @@ private fun PurchaseGiftBottomSheet(
     onConfirmPurchase: (message: String, isAnonymous: Boolean, pinToHeader: Boolean) -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val coroutineScope = rememberCoroutineScope()
     var customMessage by remember { mutableStateOf("") }
     var isAnonymous by remember { mutableStateOf(false) }
     var pinToHeader by remember { mutableStateOf(true) }
@@ -663,7 +665,12 @@ private fun PurchaseGiftBottomSheet(
 
             Button(
                 onClick = {
-                    onConfirmPurchase(customMessage, isAnonymous, pinToHeader)
+                    coroutineScope.launch {
+                        try {
+                            sheetState.hide()
+                        } catch (_: Exception) {}
+                        onConfirmPurchase(customMessage, isAnonymous, pinToHeader)
+                    }
                 },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -699,6 +706,7 @@ private fun PurchaseCollectibleBottomSheet(
     onConfirmPurchase: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val coroutineScope = rememberCoroutineScope()
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -777,7 +785,14 @@ private fun PurchaseCollectibleBottomSheet(
             Spacer(modifier = Modifier.height(20.dp))
 
             Button(
-                onClick = onConfirmPurchase,
+                onClick = {
+                    coroutineScope.launch {
+                        try {
+                            sheetState.hide()
+                        } catch (_: Exception) {}
+                        onConfirmPurchase()
+                    }
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp),
