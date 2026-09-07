@@ -446,17 +446,11 @@ fun MainAppNavigation(viewModel: AppViewModel = koinViewModel()) {
                                                                 )
                                                             }
                                                         } else {
-                                                            Row(
-                                                                verticalAlignment = Alignment.CenterVertically,
-                                                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                                            ) {
-                                                                com.example.ui.components.KuoteXHeaderLogo(size = 28.dp)
-                                                                Text(
-                                                                    text = "KuoteX",
-                                                                    fontWeight = FontWeight.Bold,
-                                                                    style = MaterialTheme.typography.titleLarge
-                                                                )
-                                                            }
+                                                            Text(
+                                                                text = "KuoteX",
+                                                                fontWeight = FontWeight.Bold,
+                                                                style = MaterialTheme.typography.titleLarge
+                                                            )
                                                         }
                                                     }
                                                 }
@@ -2641,8 +2635,6 @@ fun AccountDrawerContent(viewModel: AppViewModel, onCloseDrawer: () -> Unit, nav
                                 .background(androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant),
                             contentScale = ContentScale.Crop
                         )
-                        Spacer(Modifier.weight(1f))
-                        com.example.ui.components.KuoteXHeaderLogo(size = 36.dp)
                     }
                     Spacer(Modifier.height(8.dp))
                     Text(account?.displayName ?: "", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
