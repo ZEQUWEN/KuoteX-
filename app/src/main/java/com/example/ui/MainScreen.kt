@@ -79,14 +79,78 @@ import com.example.ui.navigation.AppDestinations
 
 val LocalActiveAccount = compositionLocalOf<UserAccount?> { null }
 
+enum class SplashTransitionState {
+    ACTIVE,
+    TRANSITIONING,
+    DISMISSED
+}
+
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.animation.ExperimentalSharedTransitionApi::class)
 @Composable
 fun MainAppNavigation(viewModel: AppViewModel = koinViewModel()) {
-    var showSplash by remember { mutableStateOf(true) }
-    
-    if (showSplash) {
-        SplashScreen { showSplash = false }
-        return
+    var splashState by remember { mutableStateOf(SplashTransitionState.ACTIVE) }
+
+    val splashTransition = updateTransition(targetState = splashState, label = "TelegramSplashTransition")
+
+    // Telegram-style entrance: Chat list scales from 0.94f to 1.0f and blooms into view
+    val mainContentScale by splashTransition.animateFloat(
+        transitionSpec = {
+            tween(durationMillis = 460, easing = CubicBezierEasing(0.2f, 0.0f, 0.0f, 1.0f))
+        },
+        label = "mainContentScale"
+    ) { state ->
+        when (state) {
+            SplashTransitionState.ACTIVE -> 0.94f
+            SplashTransitionState.TRANSITIONING -> 1.0f
+            SplashTransitionState.DISMISSED -> 1.0f
+        }
+    }
+
+    val mainContentAlpha by splashTransition.animateFloat(
+        transitionSpec = {
+            tween(durationMillis = 380, easing = FastOutSlowInEasing)
+        },
+        label = "mainContentAlpha"
+    ) { state ->
+        when (state) {
+            SplashTransitionState.ACTIVE -> 0.6f
+            SplashTransitionState.TRANSITIONING -> 1.0f
+            SplashTransitionState.DISMISSED -> 1.0f
+        }
+    }
+
+    // Splash overlay exit: zooms smoothly and dissolves
+    val splashAlpha by splashTransition.animateFloat(
+        transitionSpec = {
+            tween(durationMillis = 440, easing = FastOutSlowInEasing)
+        },
+        label = "splashAlpha"
+    ) { state ->
+        when (state) {
+            SplashTransitionState.ACTIVE -> 1.0f
+            SplashTransitionState.TRANSITIONING -> 0.0f
+            SplashTransitionState.DISMISSED -> 0.0f
+        }
+    }
+
+    val splashExitScale by splashTransition.animateFloat(
+        transitionSpec = {
+            tween(durationMillis = 460, easing = CubicBezierEasing(0.2f, 0.0f, 0.0f, 1.0f))
+        },
+        label = "splashExitScale"
+    ) { state ->
+        when (state) {
+            SplashTransitionState.ACTIVE -> 1.0f
+            SplashTransitionState.TRANSITIONING -> 1.24f
+            SplashTransitionState.DISMISSED -> 1.24f
+        }
+    }
+
+    LaunchedEffect(splashState) {
+        if (splashState == SplashTransitionState.TRANSITIONING) {
+            kotlinx.coroutines.delay(460)
+            splashState = SplashTransitionState.DISMISSED
+        }
     }
 
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
@@ -176,8 +240,19 @@ fun MainAppNavigation(viewModel: AppViewModel = koinViewModel()) {
     var showCreateSecretChatDialog by remember { mutableStateOf(false) }
     var isStoryExpanded by remember { mutableStateOf(false) }
 
-    CompositionLocalProvider(LocalActiveAccount provides activeAccount) {
-        Box(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Main App Screen (Chat list, navigation, drawer)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    scaleX = mainContentScale
+                    scaleY = mainContentScale
+                    alpha = mainContentAlpha
+                }
+        ) {
+            CompositionLocalProvider(LocalActiveAccount provides activeAccount) {
+                Box(modifier = Modifier.fillMaxSize()) {
             // Render Active Theme Canvas in background
             androidx.compose.animation.Crossfade(
                 targetState = theme,
@@ -371,11 +446,17 @@ fun MainAppNavigation(viewModel: AppViewModel = koinViewModel()) {
                                                                 )
                                                             }
                                                         } else {
-                                                            Text(
-                                                                text = "KuoteX",
-                                                                fontWeight = FontWeight.Bold,
-                                                                style = MaterialTheme.typography.titleLarge
-                                                            )
+                                                            Row(
+                                                                verticalAlignment = Alignment.CenterVertically,
+                                                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                                            ) {
+                                                                com.example.ui.components.KuoteXHeaderLogo(size = 28.dp)
+                                                                Text(
+                                                                    text = "KuoteX",
+                                                                    fontWeight = FontWeight.Bold,
+                                                                    style = MaterialTheme.typography.titleLarge
+                                                                )
+                                                            }
                                                         }
                                                     }
                                                 }
@@ -647,6 +728,24 @@ fun MainAppNavigation(viewModel: AppViewModel = koinViewModel()) {
             }
         }
     }
+    }
+
+    // Seamless Telegram-style Splash Overlay (Iceberg + KuoteX Logo)
+    if (splashState != SplashTransitionState.DISMISSED) {
+        SplashScreen(
+            splashAlpha = splashAlpha,
+            exitScale = splashExitScale,
+            onAnimationReadyToTransition = {
+                if (splashState == SplashTransitionState.ACTIVE) {
+                    splashState = SplashTransitionState.TRANSITIONING
+                }
+            },
+            onTransitionComplete = {
+                splashState = SplashTransitionState.DISMISSED
+            }
+        )
+    }
+}
 }
 
 
@@ -2543,6 +2642,7 @@ fun AccountDrawerContent(viewModel: AppViewModel, onCloseDrawer: () -> Unit, nav
                             contentScale = ContentScale.Crop
                         )
                         Spacer(Modifier.weight(1f))
+                        com.example.ui.components.KuoteXHeaderLogo(size = 36.dp)
                     }
                     Spacer(Modifier.height(8.dp))
                     Text(account?.displayName ?: "", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
