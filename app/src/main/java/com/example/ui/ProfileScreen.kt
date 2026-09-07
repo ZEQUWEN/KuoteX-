@@ -150,6 +150,13 @@ fun ProfileScreen(
     // Active pinned collectible gift next to username (e.g. Nail Bracelet #2095)
     val pinnedCollectible = userPinnedCollectibles[chatId] ?: collectibleMarketplace.find { it.ownerName == chatId || it.ownerName == chat.title }
 
+    // Initialize gifts for profile if not yet loaded in ecosystem state
+    LaunchedEffect(chatId) {
+        if (!pinnedGiftsMap.containsKey(chatId) || pinnedGiftsMap[chatId].isNullOrEmpty()) {
+            ecosystemManager.initializeUserGiftsIfEmpty(chatId)
+        }
+    }
+
     // User's received gifts
     val userGifts = remember(pinnedGiftsMap, chatId) {
         val rawList = pinnedGiftsMap[chatId] ?: emptyList()

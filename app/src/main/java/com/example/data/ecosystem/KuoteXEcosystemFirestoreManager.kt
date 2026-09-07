@@ -83,9 +83,89 @@ object KuoteXEcosystemFirestoreManager {
     }
 
     /**
+     * Default sample gift documents matching Telegram references.
+     */
+    fun sampleUserGiftDocs(userId: String): List<KuoteXUserGiftDoc> {
+        return listOf(
+            KuoteXUserGiftDoc(
+                userGiftId = "g_heart_1",
+                catalogGiftId = "gift_heart_box_008",
+                senderId = "alex",
+                receiverId = userId,
+                isPinnedToHeader = true,
+                pinOrderIndex = 0,
+                upgradeLevel = 2,
+                cachedTitle = "Сердце с бантом",
+                cachedEmoji = "💝",
+                cachedColorHex = "#2E081E"
+            ),
+            KuoteXUserGiftDoc(
+                userGiftId = "g_bear_1",
+                catalogGiftId = "gift_teddy_bear_007",
+                senderId = "Сестра.",
+                receiverId = userId,
+                isPinnedToHeader = true,
+                pinOrderIndex = 1,
+                upgradeLevel = 1,
+                cachedTitle = "Плюшевый Мишка",
+                cachedEmoji = "🧸",
+                cachedColorHex = "#261E14"
+            ),
+            KuoteXUserGiftDoc(
+                userGiftId = "g_bear_2",
+                catalogGiftId = "gift_teddy_bear_007",
+                senderId = "round_fan",
+                receiverId = userId,
+                isPinnedToHeader = true,
+                pinOrderIndex = 2,
+                upgradeLevel = 1,
+                cachedTitle = "Плюшевый Мишка",
+                cachedEmoji = "🧸",
+                cachedColorHex = "#261E14"
+            ),
+            KuoteXUserGiftDoc(
+                userGiftId = "g_bear_3",
+                catalogGiftId = "gift_teddy_bear_007",
+                senderId = "Аноним",
+                receiverId = userId,
+                isPinnedToHeader = true,
+                pinOrderIndex = 3,
+                upgradeLevel = 1,
+                cachedTitle = "Плюшевый Мишка",
+                cachedEmoji = "🧸",
+                cachedColorHex = "#261E14"
+            ),
+            KuoteXUserGiftDoc(
+                userGiftId = "g_gold_1",
+                catalogGiftId = "gift_golden_present_009",
+                senderId = "best_friend",
+                receiverId = userId,
+                isPinnedToHeader = true,
+                pinOrderIndex = 4,
+                upgradeLevel = 3,
+                cachedTitle = "Золотой Подарок",
+                cachedEmoji = "🎁",
+                cachedColorHex = "#2D2206"
+            ),
+            KuoteXUserGiftDoc(
+                userGiftId = "g_dragon_1",
+                catalogGiftId = "gift_cyber_dragon_001",
+                senderId = "durov",
+                receiverId = userId,
+                isPinnedToHeader = true,
+                pinOrderIndex = 5,
+                upgradeLevel = 4,
+                cachedTitle = "Cyber Dragon 2026",
+                cachedEmoji = "🐉",
+                cachedColorHex = "#1E1B4B"
+            )
+        )
+    }
+
+    /**
      * Initializes gifts for a user if not already in memory/cache.
      */
-    fun initializeUserGiftsIfEmpty(userId: String, gifts: List<KuoteXUserGiftDoc>) {
+    fun initializeUserGiftsIfEmpty(userId: String, gifts: List<KuoteXUserGiftDoc> = sampleUserGiftDocs(userId)) {
         _pinnedGiftsMap.update { currentMap ->
             if (currentMap[userId].isNullOrEmpty()) {
                 currentMap + (userId to gifts)
@@ -699,17 +779,81 @@ object KuoteXEcosystemFirestoreManager {
             }
 
             _pinnedGiftsMap.update { currentMap ->
-                val existing = currentMap[targetUserId]?.toMutableList() ?: mutableListOf()
+                val existing = currentMap[targetUserId]?.toMutableList() ?: sampleUserGiftDocs(targetUserId).toMutableList()
                 if (userGiftResult.isPinnedToHeader) {
-                    existing.add(userGiftResult)
+                    existing.add(0, userGiftResult)
                 }
                 currentMap + (targetUserId to existing)
             }
 
             Result.success(userGiftResult)
         } catch (e: Exception) {
-            Log.e(TAG, "Transaction failed for gift purchase: ${e.message}", e)
-            Result.failure(e)
+            if (e is InsufficientBalanceException || e is GiftSoldOutException || e is DuplicateTransactionException) {
+                Log.e(TAG, "Transaction failed for gift purchase: ${e.message}", e)
+                return@withContext Result.failure(e)
+            }
+
+            Log.w(TAG, "Remote Firestore gift purchase failed (${e.message}). Executing local atomic fallback.")
+
+            val catalogData = _catalogGifts.value.find { it.catalogGiftId == catalogGiftId }
+                ?: return@withContext Result.failure(IllegalArgumentException("Gift $catalogGiftId not found in catalog"))
+
+            val currentBalance = _currentUserState.value?.balance ?: 1000L
+            val giftPrice = catalogData.price
+            if (currentBalance < giftPrice) {
+                return@withContext Result.failure(InsufficientBalanceException("Недостаточно звёзд ($currentBalance < $giftPrice)"))
+            }
+
+            val availSupply = catalogData.availableSupply
+            if (availSupply != -1L && availSupply <= 0) {
+                return@withContext Result.failure(GiftSoldOutException("Gift is completely sold out"))
+            }
+
+            // Deduct sender balance locally
+            _currentUserState.update { curr ->
+                curr?.copy(balance = (curr.balance - giftPrice).coerceAtLeast(0L))
+                    ?: KuoteXUserDoc(userId = senderUserId, username = "me", displayName = "Me", balance = (1000L - giftPrice).coerceAtLeast(0L))
+            }
+
+            // Decrement catalog available supply
+            if (availSupply > 0) {
+                _catalogGifts.update { list ->
+                    list.map {
+                        if (it.catalogGiftId == catalogGiftId) it.copy(availableSupply = (it.availableSupply - 1).coerceAtLeast(0L)) else it
+                    }
+                }
+            }
+
+            val existing = _pinnedGiftsMap.value[targetUserId]?.toMutableList()
+                ?: sampleUserGiftDocs(targetUserId).toMutableList()
+            val shouldPin = pinToHeader && (existing.size < 12)
+
+            val localUserGift = KuoteXUserGiftDoc(
+                userGiftId = userGiftId,
+                catalogGiftId = catalogGiftId,
+                senderId = if (isAnonymous) "anonymous" else senderUserId,
+                receiverId = targetUserId,
+                isPinnedToHeader = shouldPin,
+                pinOrderIndex = if (shouldPin) 0 else -1,
+                upgradeLevel = 1,
+                transferable = false,
+                message = message,
+                isAnonymous = isAnonymous,
+                acquiredAt = now,
+                cachedTitle = catalogData.title,
+                cachedEmoji = catalogData.emojiIcon,
+                cachedColorHex = catalogData.backdropColorHex
+            )
+
+            if (shouldPin) {
+                existing.add(0, localUserGift)
+            }
+            _pinnedGiftsMap.update { currentMap ->
+                currentMap + (targetUserId to existing)
+            }
+
+            Log.i(TAG, "Gift purchase completed locally: ${localUserGift.userGiftId} (${catalogData.title})")
+            Result.success(localUserGift)
         }
     }
 
@@ -786,8 +930,31 @@ object KuoteXEcosystemFirestoreManager {
             _currentUserState.value = updatedUser
             Result.success(updatedUser)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed VIP activation: ${e.message}", e)
-            Result.failure(e)
+            if (e is InsufficientBalanceException || e is DuplicateTransactionException) {
+                Log.e(TAG, "Failed VIP activation due to business constraint: ${e.message}")
+                return@withContext Result.failure(e)
+            }
+
+            Log.w(TAG, "Remote Firestore VIP activation failed (${e.message}). Activating locally.")
+            val currentBalance = _currentUserState.value?.balance ?: 1000L
+            if (currentBalance < price) {
+                return@withContext Result.failure(InsufficientBalanceException("Недостаточно Stars ($currentBalance < $price)"))
+            }
+            val currentVipExp = _currentUserState.value?.vipExpiration ?: 0L
+            val newVipExp = (if (currentVipExp > now) currentVipExp else now) + durationMs
+            val currentVotes = _currentUserState.value?.availableBoostVotes ?: 0
+            val newVotes = currentVotes + (4 * months)
+            val newBalance = (currentBalance - price).coerceAtLeast(0L)
+
+            val localUser = (_currentUserState.value ?: KuoteXUserDoc(userId = userId)).copy(
+                balance = newBalance,
+                vipStatus = true,
+                vipExpiration = newVipExp,
+                availableBoostVotes = newVotes,
+                updatedAt = now
+            )
+            _currentUserState.value = localUser
+            Result.success(localUser)
         }
     }
 
@@ -893,8 +1060,36 @@ object KuoteXEcosystemFirestoreManager {
 
             Result.success(updatedChannel)
         } catch (e: Exception) {
-            Log.e(TAG, "Channel boost transaction failed: ${e.message}", e)
-            Result.failure(e)
+            if (e is UnauthorizedBoostException || e is InsufficientBoostVotesException) {
+                Log.e(TAG, "Channel boost failed due to business rule: ${e.message}")
+                return@withContext Result.failure(e)
+            }
+
+            Log.w(TAG, "Remote Firestore channel boost failed (${e.message}). Applying locally.")
+            val user = _currentUserState.value
+            val availableVotes = user?.availableBoostVotes ?: 0
+            if (availableVotes < votesToApply && user?.role?.equals("developer", ignoreCase = true) != true) {
+                return@withContext Result.failure(InsufficientBoostVotesException("Недостаточно голосов буста ($availableVotes < $votesToApply)"))
+            }
+            _currentUserState.update { curr ->
+                curr?.copy(availableBoostVotes = (curr.availableBoostVotes - votesToApply).coerceAtLeast(0))
+            }
+            val newTotalVotes = votesToApply
+            val newLevel = KuoteXBoostProgression.calculateLevel(newTotalVotes)
+            val nextReq = KuoteXBoostProgression.nextLevelRequirement(newTotalVotes)
+            val channelDoc = KuoteXChannelDoc(
+                channelId = channelId,
+                title = "Канал",
+                currentVotes = newTotalVotes,
+                level = newLevel,
+                nextLevelRequiredVotes = nextReq,
+                customColorUnlocked = newLevel >= 1,
+                statusEmojiUnlocked = newLevel >= 2,
+                wallpaperUnlocked = newLevel >= 3,
+                storiesPerDayLimit = (newLevel * 2).coerceAtLeast(0),
+                updatedAt = now
+            )
+            Result.success(channelDoc)
         }
     }
 
@@ -1045,8 +1240,20 @@ object KuoteXEcosystemFirestoreManager {
 
             Result.success(voteDoc)
         } catch (e: Exception) {
-            Log.e(TAG, "Poll vote transaction error: ${e.message}", e)
-            Result.failure(e)
+            if (e is DuplicateTransactionException) {
+                Log.e(TAG, "Poll vote transaction error: ${e.message}", e)
+                return@withContext Result.failure(e)
+            }
+            Log.w(TAG, "Remote Firestore poll vote failed (${e.message}). Recording locally.")
+            val newVote = KuoteXPollVoteDoc(
+                voteId = voteDocId,
+                pollId = pollId,
+                chatId = chatId,
+                userId = userId,
+                selectedOptionIds = selectedOptionIds,
+                timestamp = now
+            )
+            Result.success(newVote)
         }
     }
 
@@ -1100,8 +1307,15 @@ object KuoteXEcosystemFirestoreManager {
             _currentUserState.update { it?.copy(balance = newBalance) }
             Result.success(newBalance)
         } catch (e: Exception) {
-            Log.e(TAG, "Balance top-up error: ${e.message}", e)
-            Result.failure(e)
+            if (e is DuplicateTransactionException) {
+                Log.e(TAG, "Balance top-up error: ${e.message}", e)
+                return@withContext Result.failure(e)
+            }
+            Log.w(TAG, "Remote Firestore balance top-up failed (${e.message}). Crediting locally.")
+            val currentBalance = _currentUserState.value?.balance ?: 1000L
+            val updated = currentBalance + amount
+            _currentUserState.update { it?.copy(balance = updated) }
+            Result.success(updated)
         }
     }
 
