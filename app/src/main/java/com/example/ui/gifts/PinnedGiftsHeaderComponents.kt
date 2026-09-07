@@ -623,3 +623,167 @@ private fun DetailRow(label: String, value: String) {
         Text(text = value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = Color.White)
     }
 }
+
+/**
+ * Pinned collectible gift icon and serial badge displayed directly next to user nickname/display name.
+ */
+@Composable
+fun PinnedCollectibleBadge(
+    gift: CollectibleGift,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit = {}
+) {
+    Surface(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .clickable { onClick() },
+        color = gift.parsedBackdropColor.copy(alpha = 0.85f),
+        border = androidx.compose.foundation.BorderStroke(1.dp, gift.parsedAccentColor.copy(alpha = 0.6f)),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(text = gift.emojiIcon, fontSize = 14.sp)
+            Text(
+                text = gift.formattedSerialNumber,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = gift.parsedAccentColor
+            )
+        }
+    }
+}
+
+/**
+ * BottomSheet allowing user to inspect, pin or unpin a collectible gift next to their nickname.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CollectibleGiftDetailBottomSheet(
+    gift: CollectibleGift,
+    isOwner: Boolean,
+    isPinned: Boolean,
+    onPinToggle: (CollectibleGift) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = Color(0xFF14121E),
+        scrimColor = Color.Black.copy(alpha = 0.65f)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(110.dp)
+                    .clip(RoundedCornerShape(26.dp))
+                    .background(gift.parsedBackdropColor)
+                    .border(2.dp, gift.parsedAccentColor, RoundedCornerShape(26.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(text = gift.emojiIcon, fontSize = 54.sp)
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Text(
+                text = gift.baseTitle,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.padding(top = 4.dp)
+            ) {
+                Surface(
+                    color = gift.parsedAccentColor.copy(alpha = 0.2f),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = gift.formattedSerialNumber,
+                        color = gift.parsedAccentColor,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                    )
+                }
+                Surface(
+                    color = Color.White.copy(alpha = 0.1f),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = gift.category,
+                        color = Color.LightGray,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                color = Color(0xFF1F1D2B),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    DetailRow(label = "Модель", value = gift.modelName)
+                    DetailRow(label = "Узор", value = gift.patternName)
+                    DetailRow(label = "Владелец", value = if (isOwner) "Вы" else "@${gift.ownerName}")
+                    DetailRow(label = "Стоимость", value = "${gift.priceStars} ⭐")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            if (isOwner) {
+                Button(
+                    onClick = {
+                        onPinToggle(gift)
+                        onDismiss()
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isPinned) Color(0xFFEF4444) else Color(0xFF8B5CF6)
+                    )
+                ) {
+                    Icon(
+                        if (isPinned) Icons.Filled.Close else Icons.Filled.AutoAwesome,
+                        contentDescription = null,
+                        tint = Color.White
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = if (isPinned) "Открепить от никнейма" else "Закрепить у никнейма",
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+    }
+}
+

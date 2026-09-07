@@ -1,6 +1,8 @@
 package com.example.data.ecosystem
 
 import android.util.Log
+import com.example.ui.gifts.CollectibleGift
+import com.example.ui.gifts.CurrencyType
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
@@ -57,6 +59,28 @@ object KuoteXEcosystemFirestoreManager {
 
     private val _pinnedGiftsMap = MutableStateFlow<Map<String, List<KuoteXUserGiftDoc>>>(emptyMap())
     val pinnedGiftsMap: StateFlow<Map<String, List<KuoteXUserGiftDoc>>> = _pinnedGiftsMap.asStateFlow()
+
+    // Collectible unique gifts on the marketplace
+    private val _collectibleMarketplaceGifts = MutableStateFlow<List<CollectibleGift>>(emptyList())
+    val collectibleMarketplaceGifts: StateFlow<List<CollectibleGift>> = _collectibleMarketplaceGifts.asStateFlow()
+
+    // User's pinned collectible gift next to nickname
+    private val _userPinnedCollectible = MutableStateFlow<Map<String, CollectibleGift?>>(emptyMap())
+    val userPinnedCollectible: StateFlow<Map<String, CollectibleGift?>> = _userPinnedCollectible.asStateFlow()
+
+    // Selected currency preference (Stars, USD, RUB, EUR)
+    private val _selectedCurrency = MutableStateFlow<CurrencyType>(CurrencyType.STARS)
+    val selectedCurrency: StateFlow<CurrencyType> = _selectedCurrency.asStateFlow()
+
+    fun setCurrency(currency: CurrencyType) {
+        _selectedCurrency.value = currency
+    }
+
+    fun pinCollectibleToUsername(userId: String, gift: CollectibleGift?) {
+        _userPinnedCollectible.update { current ->
+            current + (userId to gift)
+        }
+    }
 
     /**
      * Initializes gifts for a user if not already in memory/cache.
@@ -151,9 +175,100 @@ object KuoteXEcosystemFirestoreManager {
                 backdropColorHex = "#1C0D17",
                 emojiIcon = "🌸",
                 maxUpgradeLevel = 3
+            ),
+            KuoteXCatalogGiftDoc(
+                catalogGiftId = "gift_teddy_bear_007",
+                title = "Плюшевый Мишка",
+                price = 25L,
+                totalSupply = -1L,
+                availableSupply = -1L,
+                isExclusive = false,
+                backdropColorHex = "#261E14",
+                emojiIcon = "🧸",
+                maxUpgradeLevel = 4
+            ),
+            KuoteXCatalogGiftDoc(
+                catalogGiftId = "gift_heart_box_008",
+                title = "Сердце с бантом",
+                price = 50L,
+                totalSupply = -1L,
+                availableSupply = -1L,
+                isExclusive = false,
+                backdropColorHex = "#2E081E",
+                emojiIcon = "💝",
+                maxUpgradeLevel = 4
+            ),
+            KuoteXCatalogGiftDoc(
+                catalogGiftId = "gift_golden_present_009",
+                title = "Золотой Подарок",
+                price = 100L,
+                totalSupply = -1L,
+                availableSupply = -1L,
+                isExclusive = false,
+                backdropColorHex = "#2D2206",
+                emojiIcon = "🎁",
+                maxUpgradeLevel = 4
+            ),
+            KuoteXCatalogGiftDoc(
+                catalogGiftId = "gift_nail_bracelet_010",
+                title = "Nail Bracelet",
+                price = 11771L,
+                totalSupply = 5000L,
+                availableSupply = 420L,
+                isExclusive = true,
+                backdropColorHex = "#162826",
+                emojiIcon = "💍",
+                maxUpgradeLevel = 5
+            ),
+            KuoteXCatalogGiftDoc(
+                catalogGiftId = "gift_durov_glasses_011",
+                title = "Durov's Glasses",
+                price = 9775L,
+                totalSupply = 10000L,
+                availableSupply = 562L,
+                isExclusive = true,
+                backdropColorHex = "#0C1F2D",
+                emojiIcon = "🕶️",
+                maxUpgradeLevel = 5
+            ),
+            KuoteXCatalogGiftDoc(
+                catalogGiftId = "gift_perfume_bottle_012",
+                title = "Perfume Bottle",
+                price = 7115L,
+                totalSupply = 8000L,
+                availableSupply = 423L,
+                isExclusive = true,
+                backdropColorHex = "#27122B",
+                emojiIcon = "🧴",
+                maxUpgradeLevel = 5
+            ),
+            KuoteXCatalogGiftDoc(
+                catalogGiftId = "gift_spartan_helmet_013",
+                title = "Spartan Helmet",
+                price = 18790L,
+                totalSupply = 3000L,
+                availableSupply = 180L,
+                isExclusive = true,
+                backdropColorHex = "#2B160C",
+                emojiIcon = "⛑️",
+                maxUpgradeLevel = 5
+            ),
+            KuoteXCatalogGiftDoc(
+                catalogGiftId = "gift_champions_cup_014",
+                title = "Кубок Чемпиона",
+                price = 398672L,
+                totalSupply = 50L,
+                availableSupply = 12L,
+                isExclusive = true,
+                backdropColorHex = "#0D253A",
+                emojiIcon = "🏆",
+                maxUpgradeLevel = 5
             )
         )
         _catalogGifts.value = defaultCatalog
+
+        // Initialize Collectible Gifts marketplace items
+        initDefaultCollectibles()
 
         // Sync with Firestore asynchronously
         managerScope.launch {
@@ -169,6 +284,244 @@ object KuoteXEcosystemFirestoreManager {
                 Log.w(TAG, "Failed syncing default catalog to Firestore: ${e.message}")
             }
         }
+    }
+
+    /**
+     * Initializes default unique collectible marketplace gifts matching the Telegram references.
+     */
+    private fun initDefaultCollectibles() {
+        val collectibles = listOf(
+            CollectibleGift(
+                id = "col_nail_2095",
+                serialNumber = 2095,
+                baseTitle = "Nail Bracelet",
+                category = "Nail Bracelet",
+                emojiIcon = "💍",
+                modelName = "Chrome Classic",
+                patternName = "Circuit",
+                backdropColorHex = "#1E293B",
+                accentGlowHex = "#94A3B8",
+                priceStars = 11771L,
+                ownerName = "durov",
+                isPinnedToUsername = true
+            ),
+            CollectibleGift(
+                id = "col_nail_1428",
+                serialNumber = 1428,
+                baseTitle = "Nail Bracelet",
+                category = "Nail Bracelet",
+                emojiIcon = "💍",
+                modelName = "Neon Ruby",
+                patternName = "Dots Matrix",
+                backdropColorHex = "#3B1116",
+                accentGlowHex = "#EF4444",
+                priceStars = 12340L,
+                ownerName = "crypto_king"
+            ),
+            CollectibleGift(
+                id = "col_nail_3373",
+                serialNumber = 3373,
+                baseTitle = "Nail Bracelet",
+                category = "Nail Bracelet",
+                emojiIcon = "💍",
+                modelName = "Mint Emerald",
+                patternName = "Constellations",
+                backdropColorHex = "#062E29",
+                accentGlowHex = "#10B981",
+                priceStars = 12340L,
+                ownerName = "alice_wonder"
+            ),
+            CollectibleGift(
+                id = "col_nail_2960",
+                serialNumber = 2960,
+                baseTitle = "Nail Bracelet",
+                category = "Nail Bracelet",
+                emojiIcon = "💍",
+                modelName = "Violet Glow",
+                patternName = "Starfield",
+                backdropColorHex = "#2E1065",
+                accentGlowHex = "#8B5CF6",
+                priceStars = 14239L,
+                ownerName = "saturn"
+            ),
+            CollectibleGift(
+                id = "col_nail_3974",
+                serialNumber = 3974,
+                baseTitle = "Nail Bracelet",
+                category = "Nail Bracelet",
+                emojiIcon = "💍",
+                modelName = "Cyber Gold",
+                patternName = "Paws",
+                backdropColorHex = "#271E06",
+                accentGlowHex = "#F59E0B",
+                priceStars = 14714L,
+                ownerName = "goldie"
+            ),
+            CollectibleGift(
+                id = "col_nail_2181",
+                serialNumber = 2181,
+                baseTitle = "Nail Bracelet",
+                category = "Nail Bracelet",
+                emojiIcon = "💍",
+                modelName = "Toxic Lime",
+                patternName = "Energy Waves",
+                backdropColorHex = "#1A2E05",
+                accentGlowHex = "#84CC16",
+                priceStars = 15179L,
+                ownerName = "alien"
+            ),
+            CollectibleGift(
+                id = "col_nail_322",
+                serialNumber = 322,
+                baseTitle = "Nail Bracelet",
+                category = "Nail Bracelet",
+                emojiIcon = "💍",
+                modelName = "Diamond Sparkle",
+                patternName = "Stars & Sparkles",
+                backdropColorHex = "#0E2A3A",
+                accentGlowHex = "#38BDF8",
+                priceStars = 15450L,
+                ownerName = "sparkler"
+            ),
+            // Durov's Glasses items
+            CollectibleGift(
+                id = "col_glasses_3374",
+                serialNumber = 3374,
+                baseTitle = "Durov's Glasses",
+                category = "Durov's Glasses",
+                emojiIcon = "🕶️",
+                modelName = "Matrix Vision",
+                patternName = "Digital Rain",
+                backdropColorHex = "#052E16",
+                accentGlowHex = "#22C55E",
+                priceStars = 9776L,
+                ownerName = "neo"
+            ),
+            CollectibleGift(
+                id = "col_glasses_2844",
+                serialNumber = 2844,
+                baseTitle = "Durov's Glasses",
+                category = "Durov's Glasses",
+                emojiIcon = "🕶️",
+                modelName = "Aqua Star",
+                patternName = "Waveform",
+                backdropColorHex = "#0C2333",
+                accentGlowHex = "#06B6D4",
+                priceStars = 9778L,
+                ownerName = "round"
+            ),
+            CollectibleGift(
+                id = "col_glasses_2751",
+                serialNumber = 2751,
+                baseTitle = "Durov's Glasses",
+                category = "Durov's Glasses",
+                emojiIcon = "🕶️",
+                modelName = "Cyber Purple",
+                patternName = "Hexagons",
+                backdropColorHex = "#2E0854",
+                accentGlowHex = "#C084FC",
+                priceStars = 10347L,
+                ownerName = "violetta"
+            ),
+            // Perfume Bottle items
+            CollectibleGift(
+                id = "col_perfume_3107",
+                serialNumber = 3107,
+                baseTitle = "Perfume Bottle",
+                category = "Perfume Bottle",
+                emojiIcon = "🧴",
+                modelName = "No. 5 Luxury",
+                patternName = "Floral Velvet",
+                backdropColorHex = "#350C2B",
+                accentGlowHex = "#F472B6",
+                priceStars = 7115L,
+                ownerName = "mademoiselle"
+            ),
+            CollectibleGift(
+                id = "col_perfume_3961",
+                serialNumber = 3961,
+                baseTitle = "Perfume Bottle",
+                category = "Perfume Bottle",
+                emojiIcon = "🧴",
+                modelName = "Golden Amber",
+                patternName = "Sunburst",
+                backdropColorHex = "#3A2906",
+                accentGlowHex = "#FBBF24",
+                priceStars = 7120L,
+                ownerName = "cleopatra"
+            ),
+            CollectibleGift(
+                id = "col_perfume_7585",
+                serialNumber = 7585,
+                baseTitle = "Perfume Bottle",
+                category = "Perfume Bottle",
+                emojiIcon = "🧴",
+                modelName = "Obsidian Noir",
+                patternName = "Night Silhouette",
+                backdropColorHex = "#18181B",
+                accentGlowHex = "#E4E4E7",
+                priceStars = 7585L,
+                ownerName = "phantom"
+            ),
+            // Spartan Helmet
+            CollectibleGift(
+                id = "col_spartan_187",
+                serialNumber = 187,
+                baseTitle = "Spartan Helmet",
+                category = "Spartan Helmet",
+                emojiIcon = "⛑️",
+                modelName = "Leonidas Bronze",
+                patternName = "Battle Shields",
+                backdropColorHex = "#331205",
+                accentGlowHex = "#EA580C",
+                priceStars = 18790L,
+                ownerName = "sparta300"
+            ),
+            // Champion's Cup
+            CollectibleGift(
+                id = "col_cup_12",
+                serialNumber = 12,
+                baseTitle = "Кубок Чемпиона",
+                category = "Кубок Чемпиона",
+                emojiIcon = "🏆",
+                modelName = "Grand Master",
+                patternName = "Golden Laurel",
+                backdropColorHex = "#172554",
+                accentGlowHex = "#FACC15",
+                priceStars = 398672L,
+                ownerName = "winner_2026"
+            )
+        )
+        _collectibleMarketplaceGifts.value = collectibles
+    }
+
+    /**
+     * Purchase a collectible gift from the marketplace with currency check and atomic transfer.
+     */
+    suspend fun purchaseCollectibleGift(
+        userId: String,
+        collectibleGiftId: String
+    ): Result<CollectibleGift> = withContext(Dispatchers.IO) {
+        val gift = _collectibleMarketplaceGifts.value.find { it.id == collectibleGiftId }
+            ?: return@withContext Result.failure(IllegalArgumentException("Collectible gift not found"))
+
+        val currentBalance = _currentUserState.value?.balance ?: 1000L
+        if (currentBalance < gift.priceStars) {
+            return@withContext Result.failure(InsufficientBalanceException("Недостаточно звёзд (${currentBalance} < ${gift.priceStars})"))
+        }
+
+        // Deduct stars & transfer ownership
+        _currentUserState.update { curr ->
+            curr?.copy(balance = curr.balance - gift.priceStars)
+        }
+
+        val updatedGift = gift.copy(ownerId = userId, ownerName = "me", isForSale = false)
+
+        _collectibleMarketplaceGifts.update { list ->
+            list.map { if (it.id == collectibleGiftId) updatedGift else it }
+        }
+
+        Result.success(updatedGift)
     }
 
     /**

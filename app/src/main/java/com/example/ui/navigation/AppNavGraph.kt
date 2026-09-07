@@ -72,6 +72,7 @@ object AppDestinations {
     const val BOT_DASHBOARD = "dashboard/{botId}"
     const val MY_PROFILE = "my_profile"
     const val PROFILE = "profile/{chatId}"
+    const val GIFTS_MARKETPLACE = "gifts_marketplace?userId={userId}&userName={userName}"
     const val GROUP_ADMIN = "group_admin/{chatId}"
     const val CHANNEL_ADMIN = "channel_admin/{chatId}"
     const val CHANNEL_APPEARANCE = "channel_appearance/{chatId}"
@@ -84,6 +85,9 @@ object AppDestinations {
     fun dashboard(botId: String) = "dashboard/$botId"
     fun broadcast(streamId: String? = null) = if (streamId != null) "broadcast/$streamId" else "broadcast"
     fun profile(chatId: String) = "profile/$chatId"
+    fun giftsMarketplace(userId: String? = null, userName: String? = null): String {
+        return if (userId != null) "gifts_marketplace?userId=$userId&userName=${userName ?: ""}" else "gifts_marketplace"
+    }
     fun groupAdmin(chatId: String) = "group_admin/$chatId"
     fun channelAdmin(chatId: String) = "channel_admin/$chatId"
     fun channelAppearance(chatId: String) = "channel_appearance/$chatId"
@@ -498,6 +502,22 @@ fun MainAppNavGraph(
                     }
                 }
             }
+        }
+        composable(
+            route = AppDestinations.GIFTS_MARKETPLACE,
+            arguments = listOf(
+                navArgument("userId") { nullable = true; defaultValue = null },
+                navArgument("userName") { nullable = true; defaultValue = null }
+            )
+        ) { backStackEntry ->
+            val targetUserId = backStackEntry.arguments?.getString("userId")
+            val targetUserName = backStackEntry.arguments?.getString("userName")
+            com.example.ui.gifts.GiftMarketplaceScreen(
+                viewModel = viewModel,
+                navController = navController,
+                targetUserId = targetUserId,
+                targetUserName = targetUserName
+            )
         }
         composable(AppDestinations.GROUP_ADMIN) { backStackEntry ->
             val chatId = backStackEntry.arguments?.getString("chatId")

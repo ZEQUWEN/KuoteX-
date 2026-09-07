@@ -207,3 +207,70 @@ enum class RarityTier(val title: String, val colorHex: String) {
     MYTHIC("Мифический", "#FFD700"),
     EXCLUSIVE("Эксклюзив", "#F59E0B")
 }
+
+/**
+ * Currency types for switching payment between Stars, USD, RUB, and EUR.
+ */
+enum class CurrencyType(val symbol: String, val title: String, val starsConversionRate: Double) {
+    STARS("⭐", "Звёзды", 1.0),
+    USD("$", "USD", 0.02),      // 1 Star ~ $0.02
+    RUB("₽", "RUB", 1.8),       // 1 Star ~ 1.8 ₽
+    EUR("€", "EUR", 0.018);     // 1 Star ~ 0.018 €
+
+    fun formatPrice(starsAmount: Long): String {
+        return when (this) {
+            STARS -> "$starsAmount ⭐"
+            USD -> {
+                val converted = starsAmount * starsConversionRate
+                "$%.2f".format(converted)
+            }
+            RUB -> {
+                val converted = (starsAmount * starsConversionRate).toLong()
+                "$converted ₽"
+            }
+            EUR -> {
+                val converted = starsAmount * starsConversionRate
+                "€%.2f".format(converted)
+            }
+        }
+    }
+}
+
+/**
+ * Collectible unique gifts with serial numbering (#1, #2095, etc.), pattern/backdrop,
+ * model attributes, and marketplace trading price in Stars.
+ */
+data class CollectibleGift(
+    val id: String,
+    val serialNumber: Int,
+    val baseTitle: String,
+    val category: String, // "Nail Bracelet", "Durov's Glasses", "Perfume Bottle", etc.
+    val emojiIcon: String,
+    val modelName: String,
+    val patternName: String,
+    val backdropColorHex: String,
+    val accentGlowHex: String,
+    val priceStars: Long,
+    val ownerId: String = "",
+    val ownerName: String = "",
+    val isForSale: Boolean = true,
+    val isPinnedToUsername: Boolean = false
+) {
+    val formattedSerialNumber: String
+        get() = "#%,d".format(serialNumber)
+
+    val parsedBackdropColor: Color
+        get() = try {
+            Color(android.graphics.Color.parseColor(backdropColorHex))
+        } catch (_: Exception) {
+            Color(0xFF1E1B4B)
+        }
+
+    val parsedAccentColor: Color
+        get() = try {
+            Color(android.graphics.Color.parseColor(accentGlowHex))
+        } catch (_: Exception) {
+            Color(0xFFFFD700)
+        }
+}
+
