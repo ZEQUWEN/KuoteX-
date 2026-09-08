@@ -83,8 +83,9 @@ class FCMService : FirebaseMessagingService() {
                     )
                 }
 
-                // 1. Trigger System Android Notification (with RemoteInput reply & Mark as Read action)
-                NotificationHelper.showMessageNotification(
+                // Unified Divided Notification Dispatcher:
+                // Routes to in-app FCP floating bubble if app is active, or to Android Notification Shade if background/minimized
+                InAppNotificationManager.dispatchIncomingNotification(
                     context = applicationContext,
                     chatId = rawChatId,
                     senderId = rawSenderId,
@@ -92,22 +93,10 @@ class FCMService : FirebaseMessagingService() {
                     text = sanitizedText,
                     isMention = isMention,
                     chatTitle = chatTitle ?: existingChat?.title,
-                    senderAvatarUrl = avatarUrl
-                )
-
-                // 2. Trigger In-App Telegram-style Floating Bubble
-                InAppNotificationManager.postNotification(
-                    TelegramBubbleNotification(
-                        id = messageId,
-                        chatId = rawChatId,
-                        senderId = rawSenderId,
-                        senderName = rawSenderName,
-                        senderAvatarUrl = avatarUrl,
-                        chatTitle = chatTitle ?: existingChat?.title,
-                        text = sanitizedText,
-                        isMention = isMention,
-                        isGroup = isGroup
-                    )
+                    senderAvatarUrl = avatarUrl,
+                    isGroup = isGroup,
+                    isChannel = data["is_channel"]?.toBooleanStrictOrNull() ?: false,
+                    mentionedUsername = if (isMention) myUsername else null
                 )
 
                 com.example.analytics.FirebaseAnalyticsHelper.logMessageSendSuccess(

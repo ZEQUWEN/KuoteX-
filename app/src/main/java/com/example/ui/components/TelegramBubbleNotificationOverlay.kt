@@ -243,25 +243,39 @@ fun TelegramBubbleNotificationOverlay(
                                     shape = RoundedCornerShape(6.dp),
                                     border = androidx.compose.foundation.BorderStroke(0.5.dp, Color(0xFFFFB300))
                                 ) {
+                                    val mentionLabel = when {
+                                        bubble.isChannel -> "В канале"
+                                        bubble.isGroup -> "В группе"
+                                        else -> "Упоминание"
+                                    }
                                     Text(
-                                        text = "Упоминание",
+                                        text = "@ $mentionLabel",
                                         color = Color(0xFFFFB300),
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                     )
                                 }
                             }
                         }
 
                         if (!bubble.chatTitle.isNullOrBlank() && bubble.chatTitle != bubble.senderName) {
-                            Text(
-                                text = "в ${bubble.chatTitle}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = if (bubble.isChannel) Icons.Filled.Campaign else Icons.Filled.Group,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(13.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = bubble.chatTitle,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         }
                     }
 
@@ -281,9 +295,25 @@ fun TelegramBubbleNotificationOverlay(
 
                 Spacer(modifier = Modifier.height(6.dp))
 
-                // Message Text Preview
+                // Message Text Preview with styled @mentions
+                val annotatedText = remember(bubble.text) {
+                    androidx.compose.ui.text.buildAnnotatedString {
+                        val words = bubble.text.split(" ")
+                        words.forEachIndexed { index, word ->
+                            if (word.startsWith("@")) {
+                                pushStyle(androidx.compose.ui.text.SpanStyle(color = Color(0xFFFFB300), fontWeight = FontWeight.Bold))
+                                append(word)
+                                pop()
+                            } else {
+                                append(word)
+                            }
+                            if (index < words.size - 1) append(" ")
+                        }
+                    }
+                }
+
                 Text(
-                    text = bubble.text,
+                    text = annotatedText,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.95f),
                     maxLines = if (isReplying) 1 else 2,
@@ -314,13 +344,13 @@ fun TelegramBubbleNotificationOverlay(
                                     InAppNotificationManager.markAsRead(bubble.chatId, context)
                                 },
                                 shape = RoundedCornerShape(12.dp),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
                                 colors = ButtonDefaults.filledTonalButtonColors(
                                     containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
                                     contentColor = MaterialTheme.colorScheme.onSurfaceVariant
                                 ),
                                 modifier = Modifier
-                                    .weight(1f)
+                                    .weight(1.1f)
                                     .height(36.dp)
                                     .testTag("bubble_mark_as_read_button")
                             ) {
@@ -329,11 +359,13 @@ fun TelegramBubbleNotificationOverlay(
                                     contentDescription = null,
                                     modifier = Modifier.size(16.dp)
                                 )
-                                Spacer(modifier = Modifier.width(6.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = "Прочитано",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Medium
+                                    text = "Отметить прочитанным",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
 
@@ -349,7 +381,7 @@ fun TelegramBubbleNotificationOverlay(
                                     contentColor = if (bubble.isMention) Color.Black else MaterialTheme.colorScheme.onPrimary
                                 ),
                                 modifier = Modifier
-                                    .weight(1f)
+                                    .weight(0.9f)
                                     .height(36.dp)
                                     .testTag("bubble_reply_button")
                             ) {

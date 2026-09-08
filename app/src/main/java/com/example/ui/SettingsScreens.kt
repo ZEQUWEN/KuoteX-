@@ -1120,8 +1120,8 @@ fun SettingsGeneralScreen(viewModel: AppViewModel, navController: NavController)
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text("Всплывающий пузырь Telegram", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
-                                Text("Интерактивный плавающий баннер с быстрым ответом и отметкой о прочтении", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("Всплывающая FCP система (В приложении)", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                                Text("Интерактивный плавающий баннер с подсветкой @username, быстрым ответом и отметкой о прочтении", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             Switch(checked = bubblesEnabled, onCheckedChange = { bubblesEnabled = it })
                         }
@@ -1129,7 +1129,7 @@ fun SettingsGeneralScreen(viewModel: AppViewModel, navController: NavController)
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
-                Text("Тестирование Push-уведомлений и Bubble", modifier = Modifier.padding(start = 16.dp, bottom = 8.dp), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
+                Text("1. Тест FCP всплывающих уведомлений (В приложении)", modifier = Modifier.padding(start = 16.dp, bottom = 8.dp), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
 
                 Card(
                     shape = RoundedCornerShape(20.dp),
@@ -1138,49 +1138,130 @@ fun SettingsGeneralScreen(viewModel: AppViewModel, navController: NavController)
                 ) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text(
-                            text = "Проверьте работу системы FCM Push-уведомлений и всплывающих пузырей с кнопками «Ответить» и «Отметить прочитанным»:",
+                            text = "Срабатывает, пока вы находитесь в приложении KuoteX (вне активного диалога). Показывает стильный плавающий баннер с подсветкой @username:",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
 
-                        // Test Button 1: Normal Message Push & Bubble
-                        Button(
+                        // FCP Test 1: Group Mention
+                        FilledTonalButton(
                             onClick = {
                                 viewModel.triggerSimulatedPushNotification(
                                     chatId = "c1",
-                                    senderName = "KuoteX Coders",
-                                    text = "Привет! Загляни в ветку разработки Compose 🚀",
-                                    isMention = false,
-                                    context = context
+                                    senderName = "Billy Herrington",
+                                    text = "@neo_hacker Посмотри новый патч безопасности в morpheus empire! 🚀",
+                                    isMention = true,
+                                    context = context,
+                                    forceSystemNotification = false,
+                                    isGroup = true,
+                                    isChannel = false,
+                                    customChatTitle = "morpheus empire 👑"
                                 )
-                                android.widget.Toast.makeText(context, "Отправлено тестовое Push-уведомление", android.widget.Toast.LENGTH_SHORT).show()
+                                android.widget.Toast.makeText(context, "FCP баннер отправлен в приложение!", android.widget.Toast.LENGTH_SHORT).show()
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Filled.Group, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color(0xFFFFB300))
+                            Spacer(Modifier.width(8.dp))
+                            Text("FCP: Упоминание в группе (morpheus empire 👑)")
+                        }
+
+                        // FCP Test 2: Channel Mention
+                        FilledTonalButton(
+                            onClick = {
+                                viewModel.triggerSimulatedPushNotification(
+                                    chatId = "c2",
+                                    senderName = "KuoteX Official",
+                                    text = "@neo_hacker Внимание всем подписчикам канала: доступно обновление FCP!",
+                                    isMention = true,
+                                    context = context,
+                                    forceSystemNotification = false,
+                                    isGroup = false,
+                                    isChannel = true,
+                                    customChatTitle = "KuoteX News 📢"
+                                )
+                                android.widget.Toast.makeText(context, "FCP баннер канала отправлен!", android.widget.Toast.LENGTH_SHORT).show()
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Filled.Campaign, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color(0xFF00E5FF))
+                            Spacer(Modifier.width(8.dp))
+                            Text("FCP: Упоминание в канале (KuoteX News 📢)")
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+                Text("2. Тест уведомлений на шторке экрана (Вне приложения)", modifier = Modifier.padding(start = 16.dp, bottom = 8.dp), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
+
+                Card(
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(
+                            text = "Срабатывает в шторке экрана Android со стилизацией группы/канала и кнопками «ОТВЕТИТЬ» (с вводом) и «ОТМЕТИТЬ ПРОЧИТАННЫМ»:",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        // Delayed Background Test (allows minimizing app)
+                        Button(
+                            onClick = {
+                                android.widget.Toast.makeText(
+                                    context,
+                                    "Сверните приложение! Через 3 сек придёт уведомление на шторку...",
+                                    android.widget.Toast.LENGTH_LONG
+                                ).show()
+
+                                coroutineScope.launch {
+                                    kotlinx.coroutines.delay(3000)
+                                    viewModel.triggerSimulatedPushNotification(
+                                        chatId = "c1",
+                                        senderName = "Billy Herrington",
+                                        text = "@neo_hacker Имба\nНе имба\nТолько в рот",
+                                        isMention = true,
+                                        context = context,
+                                        forceSystemNotification = true,
+                                        isGroup = true,
+                                        isChannel = false,
+                                        customChatTitle = "morpheus empire 👑"
+                                    )
+                                }
                             },
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             Icon(Icons.Filled.NotificationsActive, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(8.dp))
-                            Text("Тест: Новое сообщение (Push + Bubble)")
+                            Text("Свернуть приложение и получить в шторку (через 3 сек)")
                         }
 
-                        // Test Button 2: Mention Message Push & Bubble
-                        FilledTonalButton(
+                        // Immediate Shade Test
+                        OutlinedButton(
                             onClick = {
                                 viewModel.triggerSimulatedPushNotification(
                                     chatId = "c1",
-                                    senderName = "Sarah Connor",
-                                    text = "@neo Срочно посмотри новый пулреквест по защите каналов!",
+                                    senderName = "Billy Herrington",
+                                    text = "@neo_hacker Имба\nНе имба\nТолько в рот",
                                     isMention = true,
-                                    context = context
+                                    context = context,
+                                    forceSystemNotification = true,
+                                    isGroup = true,
+                                    isChannel = false,
+                                    customChatTitle = "morpheus empire 👑"
                                 )
-                                android.widget.Toast.makeText(context, "Отправлено уведомление об упоминании @neo", android.widget.Toast.LENGTH_SHORT).show()
+                                android.widget.Toast.makeText(context, "Уведомление отправлено на шторку экрана!", android.widget.Toast.LENGTH_SHORT).show()
                             },
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp)
                         ) {
-                            Icon(Icons.Filled.AlternateEmail, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color(0xFFFFB300))
+                            Icon(Icons.Filled.SystemUpdateAlt, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(8.dp))
-                            Text("Тест: Упоминание в чате (@neo)")
+                            Text("Отправить на шторку сейчас (проверить кнопки)")
                         }
                     }
                 }

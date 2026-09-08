@@ -1486,6 +1486,7 @@ class AppViewModel(
 
     fun setActiveChat(chatId: String?) {
         repository.currentActiveChatId = chatId
+        com.example.notifications.InAppNotificationManager.setActiveChatId(chatId)
     }
     
     fun markMessagesAsRead(chatId: String, myUserId: String) {
@@ -1804,7 +1805,11 @@ class AppViewModel(
         senderName: String,
         text: String,
         isMention: Boolean = false,
-        context: android.content.Context
+        context: android.content.Context,
+        forceSystemNotification: Boolean = false,
+        isGroup: Boolean = true,
+        isChannel: Boolean = false,
+        customChatTitle: String? = null
     ) {
         val messageId = java.util.UUID.randomUUID().toString()
         val sanitized = com.example.utils.MessageSanitizer.sanitize(text)
@@ -1821,30 +1826,20 @@ class AppViewModel(
             )
             repository.insertMessageAndUpdateChat(newMsg, sanitized, senderName)
 
-            // Trigger System Push Notification with RemoteInput reply & Mark as Read
-            com.example.notifications.NotificationHelper.showMessageNotification(
+            // Centralized Divided Notification Dispatch:
+            // Checks if user is in app -> triggers in-app FCP floating overlay
+            // If user is outside app (or forceSystemNotification == true) -> triggers Android Notification Shade with "Ответить" and "Отметить прочитанным"
+            com.example.notifications.InAppNotificationManager.dispatchIncomingNotification(
                 context = context,
                 chatId = chatId,
                 senderId = "simulated_sender",
                 senderName = senderName,
                 text = sanitized,
                 isMention = isMention,
-                chatTitle = targetChat?.title
-            )
-
-            // Trigger In-App Telegram-style Floating Bubble
-            com.example.notifications.InAppNotificationManager.postNotification(
-                com.example.notifications.TelegramBubbleNotification(
-                    id = messageId,
-                    chatId = chatId,
-                    senderId = "simulated_sender",
-                    senderName = senderName,
-                    chatTitle = targetChat?.title,
-                    text = sanitized,
-                    isMention = isMention,
-                    isGroup = targetChat?.isGroup == true
-                ),
-                currentActiveChatId = repository.currentActiveChatId
+                chatTitle = customChatTitle ?: targetChat?.title ?: if (isGroup) "morpheus empire 👑" else null,
+                isGroup = targetChat?.isGroup == true || isGroup,
+                isChannel = isChannel,
+                forceSystemNotification = forceSystemNotification
             )
         }
     }

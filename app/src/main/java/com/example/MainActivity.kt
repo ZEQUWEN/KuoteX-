@@ -294,11 +294,13 @@ val isDarkThemeEnabled by viewModel.isDarkThemeEnabled.collectAsState()
     override fun onStart() {
         super.onStart()
         com.example.utils.CrashReporter.logLifecycleEvent("onStart")
+        com.example.notifications.InAppNotificationManager.setAppForeground(true)
     }
 
     override fun onResume() {
         super.onResume()
         com.example.utils.CrashReporter.logLifecycleEvent("onResume")
+        com.example.notifications.InAppNotificationManager.setAppForeground(true)
     }
 
     override fun onPause() {
@@ -309,6 +311,7 @@ val isDarkThemeEnabled by viewModel.isDarkThemeEnabled.collectAsState()
     override fun onStop() {
         super.onStop()
         com.example.utils.CrashReporter.logLifecycleEvent("onStop")
+        com.example.notifications.InAppNotificationManager.setAppForeground(false)
     }
 
     override fun onNewIntent(intent: Intent) {
