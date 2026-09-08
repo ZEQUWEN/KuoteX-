@@ -33,6 +33,11 @@ import com.example.ui.botapi.CustomBot
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.ui.graphics.Brush
+import com.example.data.AvatarStorageManager
+import com.example.data.EntityType
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -79,12 +84,29 @@ fun BotProfileScreen(viewModel: AppViewModel, chatId: String, navController: Nav
     val coroutineScope = rememberCoroutineScope()
 
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     
     val botObj = BotRegistry.getBot(chatId)
     val customBot = botObj as? CustomBot
     val isBotFather = botObj is com.example.ui.botapi.BotFather
 
-    val botPic = customBot?.botPicUri?.takeIf { it.isNotBlank() } ?: "https://picsum.photos/seed/${chat.id}/400"
+    val rawBotPic = customBot?.botPicUri?.takeIf { it.isNotBlank() } ?: "https://picsum.photos/seed/${chat.id}/400"
+    var currentBotPic by remember(chat.id, rawBotPic) {
+        mutableStateOf(AvatarStorageManager.getAvatar(context, EntityType.BOT, chat.id, rawBotPic))
+    }
+    val botPic = currentBotPic
+    val botPhotoPickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                val savedPath = AvatarStorageManager.saveAvatarFromUri(context, uri, EntityType.BOT, chat.id)
+                currentBotPic = savedPath
+                BotRegistry.updateBotPic(chat.id, savedPath)
+                Toast.makeText(context, "Фото бота успешно сохранено!", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
     val botUsername = "@" + (customBot?.id ?: chat.id)
     val botDescription = customBot?.description?.takeIf { it.isNotBlank() } ?: "No description provided."
     val botAbout = customBot?.about?.takeIf { it.isNotBlank() } ?: (if (isBotFather) "BotFather is the one bot to rule them all." else "")
@@ -208,56 +230,170 @@ fun BotProfileScreen(viewModel: AppViewModel, chatId: String, navController: Nav
                 avatarModifier = avatarModifier.clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant)
 
                 Box(
-                    modifier = avatarModifier,
+                    modifier = Modifier.size(100.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(context).allowHardware(false)
-                            .data(botPic)
-                            .crossfade(true)
-                            .build(),
-                        contentDescription = "Bot Picture",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    var titleModifier: Modifier = Modifier
-                    if (sharedTransitionScope != null && animatedVisibilityScope != null) {
-                        with(sharedTransitionScope) {
-                            titleModifier = titleModifier.sharedElement(
-                                state = rememberSharedContentState(key = "title_${chat.id}"),
-                                animatedVisibilityScope = animatedVisibilityScope
-                            )
-                        }
+                    Box(
+                        modifier = avatarModifier
+                            .size(100.dp)
+                            .clickable {
+                                botPhotoPickerLauncher.launch(
+                                    androidx.activity.result.PickVisualMediaRequest(
+                                        androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly
+                                    )
+                                )
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        AsyncImage(
+                            model = ImageRequest.Builder(context).allowHardware(false)
+                                .data(currentBotPic)
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = "Bot Picture",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
                     }
-                    
-                    Text(
-                        text = chat.title,
-                        modifier = titleModifier,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                    if (isBotFather) {
-                        Spacer(modifier = Modifier.width(4.dp))
+
+                    // Camera edit badge
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .size(30.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF2AABEE))
+                            .border(2.dp, MaterialTheme.colorScheme.background, CircleShape)
+                            .clickable {
+                                botPhotoPickerLauncher.launch(
+                                    androidx.activity.result.PickVisualMediaRequest(
+                                        androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly
+                                    )
+                                )
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
                         Icon(
-                            imageVector = Icons.Filled.CheckCircle,
-                            contentDescription = "Verified",
-                            tint = Color(0xFF64B5F6),
-                            modifier = Modifier.size(18.dp)
+                            imageVector = Icons.Filled.PhotoCamera,
+                            contentDescription = "Сменить фото бота",
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
                         )
                     }
                 }
 
-                Text(
-                    text = userCount,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Rounded Glass Container for Title & Nickname
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = Color(0xFF0F1424).copy(alpha = 0.65f),
+                    border = BorderStroke(
+                        width = 1.dp,
+                        brush = Brush.verticalGradient(
+                            listOf(
+                                Color.White.copy(alpha = 0.35f),
+                                Color.White.copy(alpha = 0.08f),
+                                Color(0xFF7C4DFF).copy(alpha = 0.25f)
+                            )
+                        )
+                    ),
+                    shadowElevation = 8.dp,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .background(
+                                Brush.verticalGradient(
+                                    listOf(
+                                        Color(0xFF1F263A).copy(alpha = 0.65f),
+                                        Color(0xFF101322).copy(alpha = 0.85f)
+                                    )
+                                )
+                            )
+                            .padding(horizontal = 24.dp, vertical = 12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            var titleModifier: Modifier = Modifier
+                            if (sharedTransitionScope != null && animatedVisibilityScope != null) {
+                                with(sharedTransitionScope) {
+                                    titleModifier = titleModifier.sharedElement(
+                                        state = rememberSharedContentState(key = "title_${chat.id}"),
+                                        animatedVisibilityScope = animatedVisibilityScope
+                                    )
+                                }
+                            }
+                            
+                            Text(
+                                text = chat.title,
+                                modifier = titleModifier,
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                            if (isBotFather) {
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Icon(
+                                    imageVector = Icons.Filled.CheckCircle,
+                                    contentDescription = "Verified",
+                                    tint = Color(0xFF64B5F6),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(5.dp))
+
+                        // Liquid Glass Chip for Nickname (@botUsername) with fully rounded sides
+                        Surface(
+                            shape = RoundedCornerShape(percent = 50),
+                            color = Color(0xFF242834).copy(alpha = 0.88f),
+                            border = BorderStroke(
+                                width = 1.1.dp,
+                                brush = Brush.verticalGradient(
+                                    listOf(
+                                        Color.White.copy(alpha = 0.50f),
+                                        Color.White.copy(alpha = 0.14f),
+                                        Color(0xFF2AABEE).copy(alpha = 0.20f)
+                                    )
+                                )
+                            ),
+                            shadowElevation = 6.dp,
+                            modifier = Modifier.padding(vertical = 2.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .background(
+                                        Brush.verticalGradient(
+                                            listOf(
+                                                Color(0xFF384055).copy(alpha = 0.85f),
+                                                Color(0xFF1B202E).copy(alpha = 0.92f)
+                                            )
+                                        )
+                                    )
+                                    .padding(horizontal = 14.dp, vertical = 4.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = botUsername,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 13.sp,
+                                    letterSpacing = 0.3.sp
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Text(
+                            text = userCount,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White.copy(alpha = 0.7f)
+                        )
+                    }
+                }
                 
                 Spacer(modifier = Modifier.height(24.dp))
             }

@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
+import kotlinx.coroutines.launch
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
@@ -38,6 +39,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import com.example.data.AvatarStorageManager
+import com.example.data.EntityType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -93,6 +99,35 @@ fun ChannelGroupAdminScreen(
     var showStatsDialog by remember { mutableStateOf(false) }
     var showRecentActionsDialog by remember { mutableStateOf(false) }
     var showAffiliateDialog by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    val channelAvatar = remember(chatId, customization.avatarUrl) {
+        AvatarStorageManager.getAvatar(
+            context,
+            if (chat?.isGroup == true) EntityType.GROUP else EntityType.CHANNEL,
+            chatId,
+            customization.avatarUrl
+        )
+    }
+    val hasCustomChannelAvatar = remember(chatId, channelAvatar) {
+        AvatarStorageManager.hasCustomAvatar(
+            context,
+            if (chat?.isGroup == true) EntityType.GROUP else EntityType.CHANNEL,
+            chatId
+        )
+    }
+    val photoPickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                val entityType = if (chat?.isGroup == true) EntityType.GROUP else EntityType.CHANNEL
+                val savedPath = AvatarStorageManager.saveAvatarFromUri(context, uri, entityType, chatId)
+                ChannelCustomizationManager.updateAvatar(chatId, savedPath)
+                Toast.makeText(context, "Фотография успешно сохранена!", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
     var showLeaveConfirmDialog by remember { mutableStateOf(false) }
     var deleteForAllSubscribers by remember { mutableStateOf(true) }
@@ -1296,16 +1331,32 @@ fun ChannelGroupAdminScreen(
                                         )
                                     )
                                     .clickable {
-                                        Toast.makeText(context, "Выбор фотографии из галереи...", Toast.LENGTH_SHORT).show()
+                                        photoPickerLauncher.launch(
+                                            androidx.activity.result.PickVisualMediaRequest(
+                                                androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly
+                                            )
+                                        )
                                     },
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text(
-                                    text = channelTitle.take(2).uppercase().ifEmpty { "KU" },
-                                    color = Color.White,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 22.sp
-                                )
+                                if (hasCustomChannelAvatar || !customization.avatarUrl.isNullOrEmpty()) {
+                                    AsyncImage(
+                                        model = ImageRequest.Builder(context)
+                                            .data(channelAvatar)
+                                            .crossfade(true)
+                                            .build(),
+                                        contentDescription = "Аватар",
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                } else {
+                                    Text(
+                                        text = channelTitle.take(2).uppercase().ifEmpty { "KU" },
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 22.sp
+                                    )
+                                }
                             }
 
                             Spacer(Modifier.width(14.dp))
@@ -1385,7 +1436,11 @@ fun ChannelGroupAdminScreen(
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(8.dp))
                                 .clickable {
-                                    Toast.makeText(context, "Выбор фотографии из галереи...", Toast.LENGTH_SHORT).show()
+                                    photoPickerLauncher.launch(
+                                        androidx.activity.result.PickVisualMediaRequest(
+                                            androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly
+                                        )
+                                    )
                                 }
                                 .padding(vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically

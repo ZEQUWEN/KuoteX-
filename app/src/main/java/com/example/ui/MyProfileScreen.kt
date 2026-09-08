@@ -51,6 +51,9 @@ import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import android.widget.Toast
+import com.example.data.AvatarStorageManager
+import com.example.data.EntityType
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import kotlinx.coroutines.launch
@@ -70,6 +73,33 @@ fun MyProfileScreen(viewModel: AppViewModel, navController: NavController) {
     
     var overscrollOffset by remember { mutableFloatStateOf(0f) }
     val scope = rememberCoroutineScope()
+
+    val photoPickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                val savedPath = AvatarStorageManager.saveAvatarFromUri(
+                    context = context,
+                    sourceUri = uri,
+                    entityType = EntityType.ACCOUNT,
+                    entityId = activeAccount.id
+                )
+                viewModel.updateProfile(
+                    id = activeAccount.id,
+                    username = activeAccount.username,
+                    displayName = activeAccount.displayName,
+                    bio = activeAccount.bio,
+                    profilePicUrl = savedPath,
+                    customStatus = activeAccount.customStatus,
+                    phoneNumber = activeAccount.phoneNumber,
+                    dateOfBirth = activeAccount.dateOfBirth,
+                    socialMedia = activeAccount.socialMedia
+                )
+                Toast.makeText(context, "Фотография профиля успешно сохранена!", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
     
     val nestedScrollConnection = remember {
         object : NestedScrollConnection {
@@ -135,9 +165,17 @@ fun MyProfileScreen(viewModel: AppViewModel, navController: NavController) {
         }
     }
     var selectedGiftForDetail by remember { mutableStateOf<com.example.ui.gifts.PinnedGift?>(null) }
-    val avatars = remember(activeAccount.id) {
+    val persistentAvatar = remember(activeAccount.id, activeAccount.profilePicUrl) {
+        AvatarStorageManager.getAvatar(
+            context,
+            EntityType.ACCOUNT,
+            activeAccount.id,
+            activeAccount.profilePicUrl
+        )
+    }
+    val avatars = remember(activeAccount.id, persistentAvatar) {
         listOf(
-            activeAccount.profilePicUrl.takeIf { it.isNotEmpty() } ?: "https://picsum.photos/seed/${activeAccount.id}/800",
+            persistentAvatar,
             "https://picsum.photos/seed/${activeAccount.id}_1/800",
             "https://picsum.photos/seed/${activeAccount.id}_2/800"
         )
@@ -209,70 +247,15 @@ fun MyProfileScreen(viewModel: AppViewModel, navController: NavController) {
                     .fillMaxSize()
                     .background(
                         Brush.verticalGradient(
-                            colors = listOf(Color.Transparent, MaterialTheme.colorScheme.background.copy(alpha = 0.9f)),
-                            startY = headerHeightPx * 0.5f
+                            colors = listOf(
+                                Color.Transparent,
+                                MaterialTheme.colorScheme.background.copy(alpha = 0.5f),
+                                MaterialTheme.colorScheme.background
+                            ),
+                            startY = headerHeightPx * 0.40f
                         )
                     )
             )
-            
-            // Name and Status
-            Column(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 32.dp)
-                    .graphicsLayer {
-                        alpha = 1f - collapseFraction
-                    },
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = activeAccount.displayName,
-                    style = MaterialTheme.typography.headlineLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-                if (activeAccount.customStatus.isNotEmpty()) {
-                    Text(
-                        text = activeAccount.customStatus,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = Color.White.copy(alpha = 0.9f),
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-
-                val isLive = viewModel.isUserStreaming(activeAccount.id)
-                val activeStream = viewModel.getActiveStream(activeAccount.id)
-
-                if (isLive) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .background(Color(0xFFE91E63), RoundedCornerShape(12.dp))
-                            .clickable { navController.navigate("broadcast") }
-                            .padding(horizontal = 10.dp, vertical = 4.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(6.dp)
-                                .background(Color.White, CircleShape)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "🔴 В ЭФИРЕ • LIVE (👁 ${activeStream?.viewerCount ?: 1})",
-                            color = Color.White,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                } else {
-                    Text(
-                        text = "в сети",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color.LightGray
-                    )
-                }
-            }
         }
 
         // --- Main Content ---
@@ -281,7 +264,130 @@ fun MyProfileScreen(viewModel: AppViewModel, navController: NavController) {
             modifier = Modifier.fillMaxSize()
         ) {
             item {
-                Spacer(modifier = Modifier.height(headerHeightDp - 20.dp))
+                Spacer(modifier = Modifier.height(headerHeightDp - 85.dp))
+            }
+
+            // Pinned Full-Width Liquid Glass Capsule for Nickname & Status
+            // Stretched from the left to right across the avatar
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 4.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(percent = 50),
+                        color = Color(0xFF1E2330).copy(alpha = 0.84f),
+                        border = BorderStroke(
+                            width = 1.3.dp,
+                            brush = Brush.verticalGradient(
+                                listOf(
+                                    Color.White.copy(alpha = 0.55f),
+                                    Color.White.copy(alpha = 0.14f),
+                                    Color(0xFF3B445B).copy(alpha = 0.30f)
+                                )
+                            )
+                        ),
+                        shadowElevation = 10.dp,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    Brush.verticalGradient(
+                                        listOf(
+                                            Color(0xFF384055).copy(alpha = 0.88f),
+                                            Color(0xFF1E2332).copy(alpha = 0.94f),
+                                            Color(0xFF121522).copy(alpha = 0.97f)
+                                        )
+                                    )
+                                )
+                        ) {
+                            // Top liquid glass sheen reflection highlight
+                            Box(
+                                modifier = Modifier
+                                    .matchParentSize()
+                                    .background(
+                                        Brush.verticalGradient(
+                                            listOf(
+                                                Color.White.copy(alpha = 0.24f),
+                                                Color.White.copy(alpha = 0.03f),
+                                                Color.Transparent
+                                            ),
+                                            startY = 0f,
+                                            endY = 40f
+                                        )
+                                    )
+                            )
+
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 24.dp, vertical = 10.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                // Clean Nickname (Display Name) without blue icon module
+                                Text(
+                                    text = activeAccount.displayName,
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                    fontSize = 19.sp,
+                                    letterSpacing = 0.3.sp
+                                )
+
+                                val isLive = viewModel.isUserStreaming(activeAccount.id)
+                                val activeStream = viewModel.getActiveStream(activeAccount.id)
+
+                                if (isLive) {
+                                    Spacer(Modifier.height(3.dp))
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier
+                                            .background(Color(0xFFE91E63), RoundedCornerShape(percent = 50))
+                                            .clickable { navController.navigate("broadcast") }
+                                            .padding(horizontal = 10.dp, vertical = 2.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(6.dp)
+                                                .background(Color.White, CircleShape)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "🔴 В ЭФИРЕ • LIVE (👁 ${activeStream?.viewerCount ?: 1})",
+                                            color = Color.White,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                } else {
+                                    Spacer(Modifier.height(2.dp))
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Center
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(7.dp)
+                                                .background(Color(0xFF4ADE80), CircleShape)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = if (activeAccount.customStatus.isNotBlank()) activeAccount.customStatus else "в сети",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = Color(0xFF4ADE80),
+                                            fontWeight = FontWeight.Medium,
+                                            fontSize = 12.sp
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             val isLive = viewModel.isUserStreaming(activeAccount.id)
@@ -337,19 +443,17 @@ fun MyProfileScreen(viewModel: AppViewModel, navController: NavController) {
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
-                        contract = androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia()
-                    ) { uri ->
-                        if (uri != null) {
-                            viewModel.updateProfile(activeAccount.id, activeAccount.username, activeAccount.displayName, activeAccount.bio, uri.toString(), activeAccount.customStatus)
-                        }
-                    }
-
                     ProfileActionButton(
                         icon = Icons.Filled.AddAPhoto,
                         text = "Выбрать фото",
                         modifier = Modifier.weight(1f),
-                        onClick = { launcher.launch(androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+                        onClick = {
+                            photoPickerLauncher.launch(
+                                androidx.activity.result.PickVisualMediaRequest(
+                                    androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly
+                                )
+                            )
+                        }
                     )
                     ProfileActionButton(
                         icon = Icons.Filled.Edit,

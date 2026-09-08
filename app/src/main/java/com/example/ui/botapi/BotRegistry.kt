@@ -93,6 +93,14 @@ object BotRegistry {
         return customBots.values.toList()
     }
 
+    fun updateBotPic(id: String, newPicUri: String) {
+        val existing = customBots[id] as? CustomBot
+        if (existing != null) {
+            existing.botPicUri = newPicUri
+            saveCustomBots()
+        }
+    }
+
     fun getBot(id: String): Bot? {
         return bots[id]
     }

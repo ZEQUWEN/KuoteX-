@@ -90,6 +90,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import com.example.data.AvatarStorageManager
+import com.example.data.EntityType
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -260,10 +262,18 @@ fun ProfileScreen(
     var selectedTab by remember { mutableIntStateOf(0) }
     var selectedGiftFilter by remember { mutableStateOf("Все подарки") }
 
-    // Hero Avatar URLs
-    val avatars = remember(chatId) {
+    // Hero Avatar URLs with persistent avatar storage
+    val persistentAvatar = remember(chatId) {
+        AvatarStorageManager.getAvatar(
+            context,
+            EntityType.ACCOUNT,
+            chatId,
+            "https://picsum.photos/seed/${chatId}_rem/800/800"
+        )
+    }
+    val avatars = remember(chatId, persistentAvatar) {
         listOf(
-            "https://picsum.photos/seed/${chatId}_rem/800/800",
+            persistentAvatar,
             "https://picsum.photos/seed/${chatId}_1/800/800"
         )
     }
@@ -425,71 +435,102 @@ fun ProfileScreen(
                         }
                     }
 
-                    // Bottom info on Hero Image (Name, Nickname, Pinned Collectible, Status, and Music track)
+                    // Bottom info on Hero Image (Name, Nickname, Pinned Collectible, Status) in a Rounded Glass Container
                     Column(
                         modifier = Modifier
                             .align(Alignment.BottomStart)
                             .padding(horizontal = 16.dp, vertical = 12.dp)
                     ) {
-                        // Display Name with Pinned Collectible Badge
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Text(
-                                text = chat.title,
-                                style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
-
-                            // Pinned rare collectible badge next to username
-                            pinnedCollectible?.let { col ->
-                                PinnedCollectibleBadge(
-                                    gift = col,
-                                    onClick = { selectedCollectibleDetail = col }
+                        // Rounded Glass Effect Container around Name & Nickname
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = Color(0xFF0D1220).copy(alpha = 0.68f),
+                            border = BorderStroke(
+                                width = 1.dp,
+                                brush = Brush.verticalGradient(
+                                    listOf(
+                                        Color.White.copy(alpha = 0.38f),
+                                        Color.White.copy(alpha = 0.10f),
+                                        Color(0xFF7C4DFF).copy(alpha = 0.28f)
+                                    )
                                 )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(2.dp))
-
-                        // Rating pill & Online Status (matching Screenshot 3 & 4)
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ),
+                            shadowElevation = 8.dp,
+                            modifier = Modifier.padding(bottom = 6.dp)
                         ) {
-                            Surface(
+                            Column(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .clickable { showRatingSheet = true },
-                                color = Color(0xFFC084FC).copy(alpha = 0.25f),
-                                border = BorderStroke(1.dp, Color(0xFFC084FC).copy(alpha = 0.5f)),
-                                shape = RoundedCornerShape(10.dp)
+                                    .background(
+                                        Brush.verticalGradient(
+                                            listOf(
+                                                Color(0xFF20263C).copy(alpha = 0.65f),
+                                                Color(0xFF101322).copy(alpha = 0.85f)
+                                            )
+                                        )
+                                    )
+                                    .padding(horizontal = 16.dp, vertical = 10.dp)
                             ) {
+                                // Display Name with Pinned Collectible Badge
                                 Row(
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Text(text = "👑", fontSize = 11.sp)
-                                    Spacer(modifier = Modifier.width(3.dp))
                                     Text(
-                                        text = "487 / 5K",
-                                        color = Color(0xFFE9D5FF),
+                                        text = chat.title,
+                                        style = MaterialTheme.typography.titleLarge,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 11.sp
+                                        color = Color.White
+                                    )
+
+                                    // Pinned rare collectible badge next to username
+                                    pinnedCollectible?.let { col ->
+                                        PinnedCollectibleBadge(
+                                            gift = col,
+                                            onClick = { selectedCollectibleDetail = col }
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(4.dp))
+
+                                // Rating pill & Online Status
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Surface(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .clickable { showRatingSheet = true },
+                                        color = Color(0xFFC084FC).copy(alpha = 0.25f),
+                                        border = BorderStroke(1.dp, Color(0xFFC084FC).copy(alpha = 0.5f)),
+                                        shape = RoundedCornerShape(10.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(text = "👑", fontSize = 11.sp)
+                                            Spacer(modifier = Modifier.width(3.dp))
+                                            Text(
+                                                text = "487 / 5K",
+                                                color = Color(0xFFE9D5FF),
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 11.sp
+                                            )
+                                        }
+                                    }
+
+                                    Text(
+                                        text = "был(а) недавно",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color.White.copy(alpha = 0.8f)
                                     )
                                 }
                             }
-
-                            Text(
-                                text = "был(а) недавно",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color.White.copy(alpha = 0.8f)
-                            )
                         }
 
-                        Spacer(modifier = Modifier.height(14.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
 
                         // Quick Action Buttons Row (Чат, Звук, Звонок, Подарок)
                         Row(

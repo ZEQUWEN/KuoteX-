@@ -196,6 +196,7 @@ object ChannelEmojiCatalog {
  */
 data class ChannelCustomization(
     val chatId: String,
+    val avatarUrl: String? = null,
     val emojiStatus: String? = "🪫",
     val emojiStatusAnimated: Boolean = true,
     val profileColorId: Int = 0,

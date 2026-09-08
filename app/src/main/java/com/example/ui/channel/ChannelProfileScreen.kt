@@ -5,6 +5,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
+import kotlinx.coroutines.launch
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
@@ -39,6 +40,10 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import androidx.compose.ui.layout.ContentScale
+import com.example.data.AvatarStorageManager
+import com.example.data.EntityType
 import com.example.ui.AppViewModel
 import com.example.ui.components.TelegramEmojiPickerBottomSheet
 import com.example.ui.navigateSafe
@@ -88,6 +93,35 @@ fun ChannelProfileScreen(
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
     var showLeaveConfirmDialog by remember { mutableStateOf(false) }
     var showClearHistoryDialog by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    val channelAvatar = remember(chatId, customization.avatarUrl) {
+        AvatarStorageManager.getAvatar(
+            context,
+            if (chat?.isGroup == true) EntityType.GROUP else EntityType.CHANNEL,
+            chatId,
+            customization.avatarUrl
+        )
+    }
+    val hasCustomChannelAvatar = remember(chatId, channelAvatar) {
+        AvatarStorageManager.hasCustomAvatar(
+            context,
+            if (chat?.isGroup == true) EntityType.GROUP else EntityType.CHANNEL,
+            chatId
+        )
+    }
+    val channelPhotoPickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                val entityType = if (chat?.isGroup == true) EntityType.GROUP else EntityType.CHANNEL
+                val savedPath = AvatarStorageManager.saveAvatarFromUri(context, uri, entityType, chatId)
+                ChannelCustomizationManager.updateAvatar(chatId, savedPath)
+                Toast.makeText(context, "Фото успешно обновлено и сохранено!", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
     var showMuteDurationPicker by remember { mutableStateOf(false) }
     var isSoundMuted by remember { mutableStateOf(false) }
     var deleteForAllSubscribers by remember { mutableStateOf(true) }
@@ -560,63 +594,190 @@ fun ChannelProfileScreen(
                         .padding(vertical = 8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // Large Circular Avatar (Orange/Amber gradient matching screenshot)
+                    // Circular Avatar with Camera Badge (Persistent Avatar)
                     Box(
-                        modifier = Modifier
-                            .size(96.dp)
-                            .clip(CircleShape)
-                            .background(
-                                Brush.linearGradient(
-                                    listOf(Color(0xFFFF9900), Color(0xFFFF5E36))
-                                )
-                            ),
+                        modifier = Modifier.size(96.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = (chat?.title?.take(2) ?: "KU").uppercase(),
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 34.sp
-                        )
-                    }
-
-                    Spacer(Modifier.height(12.dp))
-
-                    // Title with Status Emoji Badge
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Text(
-                            text = chat?.title ?: "KuoteX Officiall",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                        Spacer(Modifier.width(6.dp))
                         Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(Color.White.copy(alpha = 0.12f))
-                                .clickable { showEmojiPicker = true }
-                                .padding(horizontal = 4.dp, vertical = 2.dp),
+                                .size(96.dp)
+                                .clip(CircleShape)
+                                .clickable {
+                                    channelPhotoPickerLauncher.launch(
+                                        androidx.activity.result.PickVisualMediaRequest(
+                                            androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly
+                                        )
+                                    )
+                                }
+                                .background(
+                                    Brush.linearGradient(
+                                        listOf(Color(0xFFFF9900), Color(0xFFFF5E36))
+                                    )
+                                ),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                text = customization.emojiStatus ?: "🪫",
-                                fontSize = 16.sp
+                            if (hasCustomChannelAvatar || !customization.avatarUrl.isNullOrEmpty()) {
+                                AsyncImage(
+                                    model = ImageRequest.Builder(context)
+                                        .data(channelAvatar)
+                                        .crossfade(true)
+                                        .build(),
+                                    contentDescription = "Аватар",
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else {
+                                Text(
+                                    text = (chat?.title?.take(2) ?: "KU").uppercase(),
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 34.sp
+                                )
+                            }
+                        }
+
+                        // Camera edit badge on avatar
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .size(30.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF2AABEE))
+                                .border(2.dp, Color(0xFF18222D), CircleShape)
+                                .clickable {
+                                    channelPhotoPickerLauncher.launch(
+                                        androidx.activity.result.PickVisualMediaRequest(
+                                            androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly
+                                        )
+                                    )
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.PhotoCamera,
+                                contentDescription = "Сменить фото",
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
                             )
                         }
                     }
 
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(12.dp))
 
-                    // Subtitle: публичный канал
-                    Text(
-                        text = if (customization.isPublic) "публичный канал" else "частный канал",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color.White.copy(alpha = 0.5f)
-                    )
+                    // Rounded Glass Container for Title & Nickname
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = Color(0xFF0F1422).copy(alpha = 0.65f),
+                        border = BorderStroke(
+                            width = 1.dp,
+                            brush = Brush.verticalGradient(
+                                listOf(
+                                    Color.White.copy(alpha = 0.35f),
+                                    Color.White.copy(alpha = 0.08f),
+                                    Color(0xFF2AABEE).copy(alpha = 0.25f)
+                                )
+                            )
+                        ),
+                        shadowElevation = 8.dp,
+                        modifier = Modifier.padding(horizontal = 8.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .background(
+                                    Brush.verticalGradient(
+                                        listOf(
+                                            Color(0xFF1E2638).copy(alpha = 0.65f),
+                                            Color(0xFF121724).copy(alpha = 0.85f)
+                                        )
+                                    )
+                                )
+                                .padding(horizontal = 20.dp, vertical = 10.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            // Title with Status Emoji Badge
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Text(
+                                    text = chat?.title ?: "KuoteX Officiall",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(Color.White.copy(alpha = 0.12f))
+                                        .clickable { showEmojiPicker = true }
+                                        .padding(horizontal = 4.dp, vertical = 2.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = customization.emojiStatus ?: "🪫",
+                                        fontSize = 16.sp
+                                    )
+                                }
+                            }
+
+                            Spacer(Modifier.height(5.dp))
+
+                            // Liquid Glass badge for nickname / handle with fully rounded sides
+                            Surface(
+                                shape = RoundedCornerShape(percent = 50),
+                                color = Color(0xFF242834).copy(alpha = 0.88f),
+                                border = BorderStroke(
+                                    width = 1.1.dp,
+                                    brush = Brush.verticalGradient(
+                                        listOf(
+                                            Color.White.copy(alpha = 0.50f),
+                                            Color.White.copy(alpha = 0.14f),
+                                            Color(0xFF2AABEE).copy(alpha = 0.20f)
+                                        )
+                                    )
+                                ),
+                                shadowElevation = 6.dp,
+                                modifier = Modifier.padding(vertical = 2.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .background(
+                                            Brush.verticalGradient(
+                                                listOf(
+                                                    Color(0xFF384055).copy(alpha = 0.85f),
+                                                    Color(0xFF1B202E).copy(alpha = 0.92f)
+                                                )
+                                            )
+                                        )
+                                        .padding(horizontal = 14.dp, vertical = 4.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "@${chat?.title?.replace(" ", "_")?.lowercase() ?: "channel"}",
+                                        color = Color.White,
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 13.sp,
+                                        letterSpacing = 0.3.sp
+                                    )
+                                }
+                            }
+
+                            Spacer(Modifier.height(4.dp))
+
+                            // Subtitle: публичный канал / группа
+                            Text(
+                                text = if (chat?.isGroup == true) {
+                                    if (customization.isPublic) "публичная группа" else "частная группа"
+                                } else {
+                                    if (customization.isPublic) "публичный канал" else "частный канал"
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.White.copy(alpha = 0.7f)
+                            )
+                        }
+                    }
 
                     Spacer(Modifier.height(18.dp))
 

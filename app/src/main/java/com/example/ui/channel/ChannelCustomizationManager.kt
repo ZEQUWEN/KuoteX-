@@ -148,6 +148,19 @@ object ChannelCustomizationManager {
         }
     }
 
+    fun updateAvatar(chatId: String, avatarUrl: String) {
+        customizations.update { map ->
+            val current = map[chatId] ?: ChannelCustomization(chatId = chatId)
+            val updated = current.copy(avatarUrl = avatarUrl)
+            map + (chatId to updated)
+        }
+        logAdminAction(
+            chatId = chatId,
+            title = "Обновлен аватар",
+            details = "Загружена новая фотография профиля"
+        )
+    }
+
     fun updateEmojiStatus(chatId: String, emoji: String?, isAnimated: Boolean = true) {
         customizations.update { map ->
             val current = map[chatId] ?: ChannelCustomization(chatId = chatId)
