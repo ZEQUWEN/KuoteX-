@@ -293,16 +293,29 @@ class ServerHandshake:
     # ------------------------------------------------------------ helpers
 
     def handle(self, body: bytes) -> bytes:
-        """Маршрутизирует запрос по конструктору."""
+        """Маршрутизирует запрос по конструктору.
+
+        Любая ошибка внутри обработчиков переводит автомат в FAILED.
+        Это важно: часть проверок (RSA, разбор TL, срез буфера) кидает
+        исключения в обход _fail(), и без этой обёртки клиент мог бы
+        продолжить handshake в том же соединении после неудачной
+        попытки подделки.
+        """
         if len(body) < 4:
             self._fail("message too short")
         ctor = int.from_bytes(body[:4], "little", signed=True)
-        if ctor == REQ_PQ_MULTI:
-            return self.handle_req_pq(body)
-        if ctor == REQ_DH_PARAMS:
-            return self.handle_req_dh_params(body)
-        if ctor == SET_CLIENT_DH_PARAMS:
-            return self.handle_set_client_dh_params(body)
+
+        try:
+            if ctor == REQ_PQ_MULTI:
+                return self.handle_req_pq(body)
+            if ctor == REQ_DH_PARAMS:
+                return self.handle_req_dh_params(body)
+            if ctor == SET_CLIENT_DH_PARAMS:
+                return self.handle_set_client_dh_params(body)
+        except Exception:
+            self.state = State.FAILED
+            raise
+
         self._fail(f"unexpected constructor {ctor:#x}")
 
     def _temp_key_iv(self) -> tuple[bytes, bytes]:
