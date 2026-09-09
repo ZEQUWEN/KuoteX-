@@ -84,10 +84,17 @@ class MTProtoSession(
     // ------------------------------------------------------------ encrypt
 
     /** Упаковывает тело TL-запроса в зашифрованный конверт MTProto. */
-    fun encrypt(body: ByteArray, contentRelated: Boolean = true): ByteArray {
-        val messageId = nextMessageId()
-        val seqNo = nextSeqNo(contentRelated)
+    fun encrypt(body: ByteArray, contentRelated: Boolean = true): ByteArray =
+        encryptWithIds(body, nextMessageId(), nextSeqNo(contentRelated))
 
+    /**
+     * Шифрует тело с заранее известными msg_id и seq_no.
+     *
+     * Нужно роутеру: он обязан запомнить msg_id ДО отправки, чтобы
+     * сопоставить с ним будущий rpc_result. Если бы msg_id создавался
+     * внутри, узнать его снаружи было бы нельзя.
+     */
+    fun encryptWithIds(body: ByteArray, messageId: Long, seqNo: Int): ByteArray {
         val payload = ByteArray(32 + body.size)
         MTProtoCrypto.writeLongLE(payload, 0, serverSalt)
         MTProtoCrypto.writeLongLE(payload, 8, sessionId)
@@ -159,3 +166,4 @@ class MTProtoSession(
         return Incoming(salt, sid, messageId, seqNo, decrypted.copyOfRange(32, 32 + length))
     }
 }
+
