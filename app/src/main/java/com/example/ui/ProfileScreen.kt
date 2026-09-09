@@ -1,6 +1,9 @@
 package com.example.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
@@ -75,6 +78,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -86,6 +90,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -278,6 +283,21 @@ fun ProfileScreen(
         )
     }
 
+    val listState = rememberLazyListState()
+    val isAtTop by remember {
+        derivedStateOf {
+            listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset <= 6
+        }
+    }
+    val atTopScale by animateFloatAsState(
+        targetValue = if (isAtTop) 1.045f else 1.0f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioLowBouncy,
+            stiffness = Spring.StiffnessLow
+        ),
+        label = "profile_avatar_top_scale"
+    )
+
     Scaffold(
         containerColor = Color(0xFF000000),
         bottomBar = {
@@ -316,6 +336,7 @@ fun ProfileScreen(
         }
     ) { padding ->
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
@@ -327,14 +348,20 @@ fun ProfileScreen(
                         .fillMaxWidth()
                         .height(380.dp)
                 ) {
-                    // Profile Background Image
+                    // Profile Background Image with gentle scale-up animation at the top
                     AsyncImage(
                         model = ImageRequest.Builder(context)
                             .data(avatars.first())
                             .crossfade(true)
                             .build(),
                         contentDescription = "Avatar",
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer {
+                                scaleX = atTopScale
+                                scaleY = atTopScale
+                                transformOrigin = TransformOrigin(0.5f, 0.35f)
+                            },
                         contentScale = ContentScale.Crop
                     )
 

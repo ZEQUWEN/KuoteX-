@@ -5,6 +5,8 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.material.icons.automirrored.filled.*
 
@@ -35,6 +37,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
@@ -117,8 +120,10 @@ fun MyProfileScreen(viewModel: AppViewModel, navController: NavController) {
                 available: Offset,
                 source: NestedScrollSource
             ): Offset {
-                if (available.y > 0) {
-                    overscrollOffset += available.y
+                if (available.y > 0 && listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0) {
+                    val damping = (1f - (overscrollOffset / 500f)).coerceIn(0.18f, 0.55f)
+                    val delta = available.y * damping
+                    overscrollOffset += delta
                     return Offset(0f, available.y)
                 }
                 return Offset.Zero
@@ -133,7 +138,14 @@ fun MyProfileScreen(viewModel: AppViewModel, navController: NavController) {
         }
     }
 
-    val animatedOverscroll by animateFloatAsState(targetValue = overscrollOffset, label = "overscroll")
+    val animatedOverscroll by animateFloatAsState(
+        targetValue = overscrollOffset,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioLowBouncy,
+            stiffness = Spring.StiffnessLow
+        ),
+        label = "avatar_overscroll"
+    )
     
     var showEditDateDialog by remember { mutableStateOf(false) }
     var showChangeNumberDialog by remember { mutableStateOf(false) }
@@ -216,16 +228,44 @@ fun MyProfileScreen(viewModel: AppViewModel, navController: NavController) {
         val actualScroll = if (firstItemIndex == 0) scrollOffset else headerHeightPx
         val collapseFraction = (actualScroll / headerHeightPx).coerceIn(0f, 1f)
         
-        val scale = 1f + (animatedOverscroll / 1000f)
-        val translationY = if (animatedOverscroll > 0f) animatedOverscroll / 2f else -actualScroll * 0.5f
+        // Check if the user is scrolled to the very top of the profile page
+        val isAtTop by remember {
+            derivedStateOf {
+                firstItemIndex == 0 && scrollOffset <= 6f
+            }
+        }
+
+        // Gentle scale-up animation for the profile avatar when scrolling to the top:
+        // As the user returns to the top, avatar softly scales up to 1.045f with a gentle spring.
+        val atTopScale by animateFloatAsState(
+            targetValue = if (isAtTop) 1.045f else 1.0f,
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioLowBouncy,
+                stiffness = Spring.StiffnessLow
+            ),
+            label = "avatar_at_top_scale"
+        )
+
+        // Elastic stretch scale when pulling down into overscroll at the top
+        val overscrollScale = (animatedOverscroll / 320f).coerceIn(0f, 0.32f)
+        val totalAvatarScale = atTopScale + overscrollScale
+        val translationY = if (animatedOverscroll > 0f) animatedOverscroll * 0.45f else -actualScroll * 0.45f
+
+        // Dynamic Liquid Glass sheen highlight that gently enhances as the avatar settles at top
+        val glassSheenAlpha by animateFloatAsState(
+            targetValue = if (isAtTop) 0.32f else 0.18f,
+            animationSpec = spring(stiffness = Spring.StiffnessLow),
+            label = "glass_sheen_alpha"
+        )
 
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(headerHeightDp)
                 .graphicsLayer {
-                    scaleX = scale
-                    scaleY = scale
+                    scaleX = totalAvatarScale
+                    scaleY = totalAvatarScale
+                    transformOrigin = TransformOrigin(0.5f, 0.35f)
                     this.translationY = translationY
                 }
                 .clickable { showAvatarViewer = true }
@@ -312,8 +352,8 @@ fun MyProfileScreen(viewModel: AppViewModel, navController: NavController) {
                                     .background(
                                         Brush.verticalGradient(
                                             listOf(
-                                                Color.White.copy(alpha = 0.24f),
-                                                Color.White.copy(alpha = 0.03f),
+                                                Color.White.copy(alpha = glassSheenAlpha),
+                                                Color.White.copy(alpha = glassSheenAlpha * 0.2f),
                                                 Color.Transparent
                                             ),
                                             startY = 0f,
