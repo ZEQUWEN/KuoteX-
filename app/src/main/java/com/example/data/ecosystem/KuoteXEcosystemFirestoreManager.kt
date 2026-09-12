@@ -1,4 +1,4 @@
-import com.example.data.ecosystem.PaymentOutcomeUnknown
+package com.example.data.ecosystem
 
 import android.util.Log
 import com.example.ui.gifts.CollectibleGift
