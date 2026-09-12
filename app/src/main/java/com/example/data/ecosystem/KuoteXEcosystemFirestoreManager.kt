@@ -1,4 +1,4 @@
-package com.example.data.ecosystem
+import com.example.data.ecosystem.PaymentOutcomeUnknown
 
 import android.util.Log
 import com.example.ui.gifts.CollectibleGift
@@ -1311,11 +1311,10 @@ object KuoteXEcosystemFirestoreManager {
                 Log.e(TAG, "Balance top-up error: ${e.message}", e)
                 return@withContext Result.failure(e)
             }
-            Log.w(TAG, "Remote Firestore balance top-up failed (${e.message}). Crediting locally.")
-            val currentBalance = _currentUserState.value?.balance ?: 1000L
-            val updated = currentBalance + amount
-            _currentUserState.update { it?.copy(balance = updated) }
-            Result.success(updated)
+            Log.e(TAG, "Balance top-up failed (${e.message}). NOT crediting locally.")
+// Начислять звёзды на клиенте нельзя: сервер мог операцию не принять.
+// Пусть UI покажет ошибку, а пользователь повторит с тем же ключом.
+Result.failure(PaymentOutcomeUnknown(providerTxId, "Не удалось связаться с сервером"))
         }
     }
 
