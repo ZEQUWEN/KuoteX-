@@ -568,7 +568,7 @@ fun SettingsMenuScreen(viewModel: AppViewModel, navController: NavController) {
                         icon = { Box(modifier = Modifier.size(36.dp).clip(CircleShape).background(Color(0xFF2196F3)), contentAlignment = Alignment.Center) { Icon(Icons.Filled.Folder, null, tint = Color.White, modifier = Modifier.size(20.dp)) } },
                         title = "Папки с чатами",
                         subtitle = "Сортировка чатов по папкам",
-                        onClick = { }
+                        onClick = { navController.navigateSafe(com.example.ui.navigation.AppDestinations.SETTINGS_FOLDERS) }
                     )
                     SettingsListItem(
                         icon = { Box(modifier = Modifier.size(36.dp).clip(CircleShape).background(Color(0xFF00BCD4)), contentAlignment = Alignment.Center) { Icon(Icons.Filled.Devices, null, tint = Color.White, modifier = Modifier.size(20.dp)) } },

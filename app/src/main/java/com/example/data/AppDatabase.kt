@@ -445,6 +445,12 @@ class MessengerRepository(
     fun getThemeOpacity(): Float = sharedPrefs.getFloat("theme_opacity", 1.0f)
     fun saveThemeOpacity(opacity: Float) = sharedPrefs.edit().putFloat("theme_opacity", opacity).apply()
 
+    fun getChatFoldersJson(): String? = sharedPrefs.getString("chat_folders_json", null)
+    fun saveChatFoldersJson(json: String) = sharedPrefs.edit().putString("chat_folders_json", json).apply()
+
+    fun getChatTagsEnabled(): Boolean = sharedPrefs.getBoolean("chat_tags_enabled", true)
+    fun saveChatTagsEnabled(enabled: Boolean) = sharedPrefs.edit().putBoolean("chat_tags_enabled", enabled).apply()
+
     fun getMessages(chatId: String) = messageDao.getMessagesForChat(chatId).map { list -> list.map { it.copy(text = CryptoManager.decrypt(it.text), audioPath = it.audioPath?.let { p -> CryptoManager.decrypt(p) }, mediaPath = it.mediaPath?.let { p -> CryptoManager.decrypt(p) }, documentData = it.documentData?.let { p -> CryptoManager.decrypt(p) }) } }
     fun getPagedMessages(chatId: String, limit: Int) = messageDao.getRecentMessagesForChat(chatId, limit).map { list -> list.map { it.copy(text = CryptoManager.decrypt(it.text), audioPath = it.audioPath?.let { p -> CryptoManager.decrypt(p) }, mediaPath = it.mediaPath?.let { p -> CryptoManager.decrypt(p) }, documentData = it.documentData?.let { p -> CryptoManager.decrypt(p) }) } }
     fun getMessageCountForChat(chatId: String): Flow<Int> = messageDao.getMessageCountForChat(chatId)

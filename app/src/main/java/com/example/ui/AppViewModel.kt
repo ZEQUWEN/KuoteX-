@@ -14,6 +14,7 @@ import com.example.data.InboundEvent
 import androidx.compose.ui.graphics.Color
 import com.example.crypto.SignalProtocolManager
 import com.example.data.MessengerRepository
+import com.example.data.folders.ChatFolder
 
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.Flow
@@ -291,7 +292,48 @@ class AppViewModel(
     private val _isQrSnowflakesEnabled = MutableStateFlow(repository.getQrSnowflakesEnabled())
     val isQrSnowflakesEnabled: StateFlow<Boolean> = _isQrSnowflakesEnabled.asStateFlow()
 
-        private val _maxCacheSizeIndex = MutableStateFlow(3) // 0: 5GB, 1: 16GB, 2: 32GB, 3: Infinity
+    private val _chatFolders = MutableStateFlow<List<ChatFolder>>(
+        ChatFolder.listFromJson(repository.getChatFoldersJson())
+    )
+    val chatFolders: StateFlow<List<ChatFolder>> = _chatFolders.asStateFlow()
+
+    private val _chatTagsEnabled = MutableStateFlow(repository.getChatTagsEnabled())
+    val chatTagsEnabled: StateFlow<Boolean> = _chatTagsEnabled.asStateFlow()
+
+    fun saveChatFolder(folder: ChatFolder) {
+        val current = _chatFolders.value.toMutableList()
+        val index = current.indexOfFirst { it.id == folder.id }
+        if (index >= 0) {
+            current[index] = folder
+        } else {
+            current.add(folder.copy(order = current.size))
+        }
+        _chatFolders.value = current
+        repository.saveChatFoldersJson(ChatFolder.listToJson(current))
+    }
+
+    fun deleteChatFolder(folderId: String) {
+        val current = _chatFolders.value.filter { it.id != folderId }
+        _chatFolders.value = current
+        repository.saveChatFoldersJson(ChatFolder.listToJson(current))
+    }
+
+    fun reorderChatFolders(folders: List<ChatFolder>) {
+        val updated = folders.mapIndexed { idx, folder -> folder.copy(order = idx) }
+        _chatFolders.value = updated
+        repository.saveChatFoldersJson(ChatFolder.listToJson(updated))
+    }
+
+    fun setChatTagsEnabled(enabled: Boolean) {
+        _chatTagsEnabled.value = enabled
+        repository.saveChatTagsEnabled(enabled)
+    }
+
+    fun getChatFolder(folderId: String): ChatFolder? {
+        return _chatFolders.value.find { it.id == folderId }
+    }
+
+    private val _maxCacheSizeIndex = MutableStateFlow(3) // 0: 5GB, 1: 16GB, 2: 32GB, 3: Infinity
     val maxCacheSizeIndex: StateFlow<Int> = _maxCacheSizeIndex.asStateFlow()
 
     private val _forwardDrafts = MutableStateFlow<Map<String, ForwardDraft>>(emptyMap())

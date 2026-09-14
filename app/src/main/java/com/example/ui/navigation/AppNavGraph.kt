@@ -63,6 +63,8 @@ object AppDestinations {
     const val SETTINGS_BLOCKED_USERS = "settings/blocked_users"
     const val SETTINGS_LANGUAGE = "settings/language?highlightId={highlightId}"
     const val SETTINGS_BATTERY = "settings/battery?highlightId={highlightId}"
+    const val SETTINGS_FOLDERS = "settings/folders"
+    const val SETTINGS_FOLDER_EDIT = "settings/folders/edit?folderId={folderId}"
     const val SETTINGS_PRIVACY = "settings/privacy/{title}"
     const val CHAT = "chat/{chatId}"
     const val CALL = "call/{chatId}?isVideo={isVideo}"
@@ -101,6 +103,8 @@ object AppDestinations {
     fun settingsDevices(highlightId: String? = null) = if (highlightId != null) "settings/devices?highlightId=$highlightId" else "settings/devices"
     fun settingsLanguage(highlightId: String? = null) = if (highlightId != null) "settings/language?highlightId=$highlightId" else "settings/language"
     fun settingsBattery(highlightId: String? = null) = if (highlightId != null) "settings/battery?highlightId=$highlightId" else "settings/battery"
+    fun settingsFolders() = "settings/folders"
+    fun settingsFolderEdit(folderId: String? = null) = if (folderId != null) "settings/folders/edit?folderId=$folderId" else "settings/folders/edit"
 }
 
 /**
@@ -402,6 +406,23 @@ fun MainAppNavGraph(
             PrivacySettingScreen(
                 navController = navController,
                 title = title
+            )
+        }
+        composable(AppDestinations.SETTINGS_FOLDERS) {
+            com.example.ui.folders.ChatFoldersScreen(
+                viewModel = viewModel,
+                navController = navController
+            )
+        }
+        composable(
+            route = AppDestinations.SETTINGS_FOLDER_EDIT,
+            arguments = listOf(navArgument("folderId") { nullable = true; defaultValue = null })
+        ) { backStackEntry ->
+            val folderId = backStackEntry.arguments?.getString("folderId")
+            com.example.ui.folders.ChatFolderEditScreen(
+                viewModel = viewModel,
+                navController = navController,
+                folderId = folderId
             )
         }
         composable(AppDestinations.CHAT) { backStackEntry ->

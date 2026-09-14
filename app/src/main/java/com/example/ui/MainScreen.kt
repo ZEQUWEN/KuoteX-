@@ -53,6 +53,8 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.navigation.NavDestination
 import coil.compose.AsyncImage
+import com.example.data.folders.ChatFolder
+import com.example.data.folders.matches
 import coil.request.ImageRequest
 import kotlinx.coroutines.launch
 
@@ -795,6 +797,45 @@ fun TwoFactorAuthScreen(
     }
 }
 
+data class FolderTagInfo(
+    val name: String,
+    val color: Color
+)
+
+sealed interface ChatTabItem {
+    val key: String
+    val title: String
+    val emoji: String? get() = null
+    val colorHex: String? get() = null
+
+    data object All : ChatTabItem {
+        override val key = "all"
+        override val title = "All"
+    }
+    data object Personal : ChatTabItem {
+        override val key = "personal"
+        override val title = "Personal"
+    }
+    data object Groups : ChatTabItem {
+        override val key = "groups"
+        override val title = "Groups"
+    }
+    data object Channels : ChatTabItem {
+        override val key = "channels"
+        override val title = "Channels"
+    }
+    data object Bots : ChatTabItem {
+        override val key = "bots"
+        override val title = "Bots"
+    }
+    data class Custom(val folder: ChatFolder) : ChatTabItem {
+        override val key = folder.id
+        override val title = folder.name
+        override val emoji = folder.emoji
+        override val colorHex = folder.colorHex
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.animation.ExperimentalSharedTransitionApi::class)
 @Composable
 fun ChatListScreen(viewModel: AppViewModel, navController: NavController, isStoryExpanded: Boolean, onStoryExpandedChange: (Boolean) -> Unit) {
@@ -804,10 +845,24 @@ fun ChatListScreen(viewModel: AppViewModel, navController: NavController, isStor
     val drafts by viewModel.drafts.collectAsStateWithLifecycle()
     val typingChats by viewModel.typingChats.collectAsState()
     val userPresences by viewModel.userPresences.collectAsStateWithLifecycle()
+    val customFolders by viewModel.chatFolders.collectAsStateWithLifecycle()
+    val chatTagsEnabled by viewModel.chatTagsEnabled.collectAsStateWithLifecycle()
     val tabSearchQueries = remember { mutableStateMapOf<Int, String>() }
     var selectedTabIndex by remember { mutableStateOf(0) }
-    val tabs = listOf("All", "Personal", "Groups", "Channels", "Bots")
-    val currentQuery = tabSearchQueries[selectedTabIndex] ?: ""
+
+    val tabs: List<ChatTabItem> = remember(customFolders) {
+        listOf(
+            ChatTabItem.All,
+            ChatTabItem.Personal,
+            ChatTabItem.Groups,
+            ChatTabItem.Channels,
+            ChatTabItem.Bots
+        ) + customFolders.map { ChatTabItem.Custom(it) }
+    }
+
+    val safeTabIndex = selectedTabIndex.coerceIn(0, (tabs.size - 1).coerceAtLeast(0))
+    val currentTab = tabs.getOrElse(safeTabIndex) { ChatTabItem.All }
+    val currentQuery = tabSearchQueries[safeTabIndex] ?: ""
 
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     val pullRefreshState = rememberPullToRefreshState()
@@ -818,17 +873,26 @@ fun ChatListScreen(viewModel: AppViewModel, navController: NavController, isStor
         (currentQuery.isBlank() || 
         it.title.contains(currentQuery, ignoreCase = true) || 
         it.lastMessage.contains(currentQuery, ignoreCase = true)) &&
-        when (selectedTabIndex) {
-            1 -> !it.isGroup && !it.isChannel && !it.isBot // Personal
-            2 -> it.isGroup
-            3 -> it.isChannel
-            4 -> it.isBot
-            else -> true // All
+        when (currentTab) {
+            is ChatTabItem.All -> true
+            is ChatTabItem.Personal -> !it.isGroup && !it.isChannel && !it.isBot // Personal
+            is ChatTabItem.Groups -> it.isGroup
+            is ChatTabItem.Channels -> it.isChannel
+            is ChatTabItem.Bots -> it.isBot
+            is ChatTabItem.Custom -> currentTab.folder.matches(it)
         }
     }
 
-    val dbSearchResults by remember(currentQuery, selectedTabIndex) {
-        viewModel.searchDatabase(currentQuery, selectedTabIndex)
+    val dbSearchResults by remember(currentQuery, safeTabIndex) {
+        val searchCategoryIndex = when (currentTab) {
+            is ChatTabItem.All -> 0
+            is ChatTabItem.Personal -> 1
+            is ChatTabItem.Groups -> 2
+            is ChatTabItem.Channels -> 3
+            is ChatTabItem.Bots -> 4
+            is ChatTabItem.Custom -> 0
+        }
+        viewModel.searchDatabase(currentQuery, searchCategoryIndex)
     }.collectAsStateWithLifecycle(initialValue = DatabaseSearchResults())
     
     Column(modifier = Modifier.fillMaxSize()) {
@@ -844,13 +908,13 @@ fun ChatListScreen(viewModel: AppViewModel, navController: NavController, isStor
             viewModel = viewModel
         )
         
-        val searchPlaceholder = when (selectedTabIndex) {
-            0 -> "Поиск по всем чатам, каналам, ботам, людям..."
-            1 -> "Поиск личных чатов и пользователей..."
-            2 -> "Поиск групп по названию..."
-            3 -> "Поиск каналов по названию..."
-            4 -> "Поиск ботов по @username или названию..."
-            else -> "Поиск чатов..."
+        val searchPlaceholder = when (currentTab) {
+            is ChatTabItem.All -> "Поиск по всем чатам, каналам, ботам, людям..."
+            is ChatTabItem.Personal -> "Поиск личных чатов и пользователей..."
+            is ChatTabItem.Groups -> "Поиск групп по названию..."
+            is ChatTabItem.Channels -> "Поиск каналов по названию..."
+            is ChatTabItem.Bots -> "Поиск ботов по @username или названию..."
+            is ChatTabItem.Custom -> "Поиск в папке «${currentTab.title}»..."
         }
 
         Row(
@@ -859,7 +923,7 @@ fun ChatListScreen(viewModel: AppViewModel, navController: NavController, isStor
         ) {
             OutlinedTextField(
                 value = currentQuery,
-                onValueChange = { tabSearchQueries[selectedTabIndex] = it },
+                onValueChange = { tabSearchQueries[safeTabIndex] = it },
                 placeholder = { 
                     Text(
                         searchPlaceholder, 
@@ -871,7 +935,7 @@ fun ChatListScreen(viewModel: AppViewModel, navController: NavController, isStor
                 leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                 trailingIcon = {
                     if (currentQuery.isNotEmpty()) {
-                        IconButton(onClick = { tabSearchQueries[selectedTabIndex] = "" }) {
+                        IconButton(onClick = { tabSearchQueries[safeTabIndex] = "" }) {
                             Icon(Icons.Filled.Close, contentDescription = "Очистить поиск", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
@@ -879,7 +943,7 @@ fun ChatListScreen(viewModel: AppViewModel, navController: NavController, isStor
                 modifier = Modifier
                     .weight(1f)
                     .semantics {
-                        contentDescription = "Поиск в папке ${tabs.getOrElse(selectedTabIndex) { "Все" }}"
+                        contentDescription = "Поиск в папке ${tabs.getOrNull(safeTabIndex)?.title ?: "Все"}"
                     },
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
@@ -893,37 +957,109 @@ fun ChatListScreen(viewModel: AppViewModel, navController: NavController, isStor
 
         }
 
-        ScrollableTabRow(
-            selectedTabIndex = selectedTabIndex,
-            containerColor = Color.Transparent,
-            contentColor = MaterialTheme.colorScheme.onSurface,
-            edgePadding = 16.dp,
-            divider = { HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha=0.1f)) },
-            indicator = { tabPositions ->
-                TabRowDefaults.SecondaryIndicator(
-                    modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTabIndex]),
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            tabs.forEachIndexed { index, title ->
-                val tabSemanticLabel = when (title) {
-                    "All" -> "Все чаты"
-                    "Personal" -> "Личные чаты"
-                    "Groups" -> "Группы"
-                    "Channels" -> "Каналы"
-                    "Bots" -> "Боты"
-                    else -> title
-                }
-                Tab(
-                    selected = selectedTabIndex == index,
-                    onClick = { selectedTabIndex = index },
-                    text = { Text(title, fontWeight = if (selectedTabIndex == index) FontWeight.Bold else FontWeight.Normal) },
-                    unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.semantics {
-                        role = Role.Tab
-                        contentDescription = "Вкладка $tabSemanticLabel"
+            ScrollableTabRow(
+                selectedTabIndex = safeTabIndex,
+                containerColor = Color.Transparent,
+                contentColor = MaterialTheme.colorScheme.onSurface,
+                edgePadding = 16.dp,
+                divider = { HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha=0.1f)) },
+                indicator = { tabPositions ->
+                    if (safeTabIndex in tabPositions.indices) {
+                        TabRowDefaults.SecondaryIndicator(
+                            modifier = Modifier.tabIndicatorOffset(tabPositions[safeTabIndex]),
+                            color = MaterialTheme.colorScheme.primary
+                        )
                     }
+                },
+                modifier = Modifier.weight(1f)
+            ) {
+                tabs.forEachIndexed { index, tabItem ->
+                    val isSelected = safeTabIndex == index
+                    val tabSemanticLabel = when (tabItem) {
+                        is ChatTabItem.All -> "Все чаты"
+                        is ChatTabItem.Personal -> "Личные чаты"
+                        is ChatTabItem.Groups -> "Группы"
+                        is ChatTabItem.Channels -> "Каналы"
+                        is ChatTabItem.Bots -> "Боты"
+                        is ChatTabItem.Custom -> tabItem.title
+                    }
+                    val tabUnreadCount = remember(chats, tabItem) {
+                        when (tabItem) {
+                            is ChatTabItem.All -> chats.filter { !it.isArchived && !it.isBlocked }.sumOf { it.unreadCount }
+                            is ChatTabItem.Personal -> chats.filter { !it.isGroup && !it.isChannel && !it.isBot && !it.isArchived && !it.isBlocked }.sumOf { it.unreadCount }
+                            is ChatTabItem.Groups -> chats.filter { it.isGroup && !it.isArchived && !it.isBlocked }.sumOf { it.unreadCount }
+                            is ChatTabItem.Channels -> chats.filter { it.isChannel && !it.isArchived && !it.isBlocked }.sumOf { it.unreadCount }
+                            is ChatTabItem.Bots -> chats.filter { it.isBot && !it.isArchived && !it.isBlocked }.sumOf { it.unreadCount }
+                            is ChatTabItem.Custom -> chats.filter { !it.isArchived && !it.isBlocked && tabItem.folder.matches(it) }.sumOf { it.unreadCount }
+                        }
+                    }
+
+                    Tab(
+                        selected = isSelected,
+                        onClick = { selectedTabIndex = index },
+                        text = {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                if (tabItem.emoji != null) {
+                                    Text(tabItem.emoji!!, fontSize = 14.sp)
+                                    Spacer(Modifier.width(4.dp))
+                                } else if (tabItem is ChatTabItem.Custom && tabItem.colorHex != null) {
+                                    val dotColor = runCatching { Color(android.graphics.Color.parseColor(tabItem.colorHex)) }.getOrDefault(MaterialTheme.colorScheme.primary)
+                                    Box(
+                                        modifier = Modifier
+                                            .size(8.dp)
+                                            .clip(CircleShape)
+                                            .background(dotColor)
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                }
+                                Text(
+                                    text = tabItem.title,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                )
+                                if (tabUnreadCount > 0) {
+                                    Spacer(Modifier.width(6.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
+                                            .padding(horizontal = 6.dp, vertical = 1.dp)
+                                    ) {
+                                        Text(
+                                            text = tabUnreadCount.toString(),
+                                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                                            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                        },
+                        unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.semantics {
+                            role = Role.Tab
+                            contentDescription = "Вкладка $tabSemanticLabel"
+                        }
+                    )
+                }
+            }
+
+            IconButton(
+                onClick = { navController.navigate(AppDestinations.SETTINGS_FOLDERS) },
+                modifier = Modifier
+                    .padding(end = 4.dp)
+                    .size(36.dp)
+            ) {
+                Icon(
+                    Icons.Filled.FolderCopy,
+                    contentDescription = "Папки с чатами",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
                 )
             }
         }
@@ -981,12 +1117,26 @@ fun ChatListScreen(viewModel: AppViewModel, navController: NavController, isStor
             }
 
             items(filteredChats, key = { it.id }) { chat ->
+                val chatFolderTags = remember(customFolders, chatTagsEnabled, chat) {
+                    if (!chatTagsEnabled) emptyList()
+                    else {
+                        customFolders
+                            .filter { it.matches(chat) }
+                            .map { f ->
+                                val col = runCatching { Color(android.graphics.Color.parseColor(f.colorHex)) }
+                                    .getOrDefault(Color(0xFF2196F3))
+                                FolderTagInfo(f.name, col)
+                            }
+                    }
+                }
+
                 SwipeableChatListItem(
                     chat = chat, 
                     isTyping = typingChats.contains(chat.id),
                     draftText = drafts[chat.id],
                     viewModel = viewModel,
                     presence = userPresences[chat.id],
+                    folderTags = chatFolderTags,
                     onClick = { 
                         focusManager.clearFocus()
                         keyboardController?.hide()
@@ -1156,6 +1306,7 @@ fun SwipeableChatListItem(
     draftText: String? = null,
     viewModel: AppViewModel, 
     presence: com.example.ui.UserPresence? = null, 
+    folderTags: List<FolderTagInfo> = emptyList(),
     onClick: () -> Unit, 
     onAvatarClick: () -> Unit = {}
 ) {
@@ -1197,6 +1348,7 @@ fun SwipeableChatListItem(
                 isTyping = isTyping, 
                 draftText = draftText,
                 presence = presence,
+                folderTags = folderTags,
                 onClick = onClick, 
                 onAvatarClick = onAvatarClick
             )
@@ -1210,6 +1362,7 @@ fun ChatListItem(
     isTyping: Boolean = false, 
     draftText: String? = null,
     presence: com.example.ui.UserPresence? = null,
+    folderTags: List<FolderTagInfo> = emptyList(),
     onClick: () -> Unit, 
     onAvatarClick: () -> Unit = {}
 ) {
@@ -1318,7 +1471,36 @@ fun ChatListItem(
                     Icon(Icons.Filled.SmartToy, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color(0xFF00D4FF))
                     Spacer(Modifier.width(4.dp))
                 }
-                Text(chat.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                Text(
+                    text = chat.title, 
+                    style = MaterialTheme.typography.titleMedium, 
+                    fontWeight = FontWeight.Bold, 
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+
+                if (folderTags.isNotEmpty()) {
+                    folderTags.take(2).forEach { tag ->
+                        Spacer(Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(tag.color)
+                                .padding(horizontal = 5.dp, vertical = 1.dp)
+                        ) {
+                            Text(
+                                text = tag.name.uppercase(),
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold
+                                ),
+                                color = Color.White
+                            )
+                        }
+                    }
+                }
             }
             if (!chat.isGroup && !chat.isChannel && !chat.isBot) {
                 if (presence?.isOnline == true) {
