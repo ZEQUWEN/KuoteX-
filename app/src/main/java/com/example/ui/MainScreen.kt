@@ -57,6 +57,16 @@ import com.example.data.folders.ChatFolder
 import com.example.data.folders.matches
 import coil.request.ImageRequest
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
+import android.content.Intent
+import android.widget.Toast
 
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
@@ -847,8 +857,14 @@ fun ChatListScreen(viewModel: AppViewModel, navController: NavController, isStor
     val userPresences by viewModel.userPresences.collectAsStateWithLifecycle()
     val customFolders by viewModel.chatFolders.collectAsStateWithLifecycle()
     val chatTagsEnabled by viewModel.chatTagsEnabled.collectAsStateWithLifecycle()
+    val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
+    val haptic = LocalHapticFeedback.current
+    val activeAccount = LocalActiveAccount.current
+    val currentUserId = activeAccount?.id ?: "1"
+
     val tabSearchQueries = remember { mutableStateMapOf<Int, String>() }
-    var selectedTabIndex by remember { mutableStateOf(0) }
 
     val tabs: List<ChatTabItem> = remember(customFolders) {
         listOf(
@@ -860,40 +876,16 @@ fun ChatListScreen(viewModel: AppViewModel, navController: NavController, isStor
         ) + customFolders.map { ChatTabItem.Custom(it) }
     }
 
-    val safeTabIndex = selectedTabIndex.coerceIn(0, (tabs.size - 1).coerceAtLeast(0))
+    val pagerState = rememberPagerState(initialPage = 0) { tabs.size }
+
+    var showDeleteFolderDialog by remember { mutableStateOf<ChatFolder?>(null) }
+    var showShareFolderDialog by remember { mutableStateOf<ChatFolder?>(null) }
+
+    val safeTabIndex = pagerState.currentPage.coerceIn(0, (tabs.size - 1).coerceAtLeast(0))
     val currentTab = tabs.getOrElse(safeTabIndex) { ChatTabItem.All }
     val currentQuery = tabSearchQueries[safeTabIndex] ?: ""
 
     val isRefreshing by viewModel.isRefreshing.collectAsState()
-    val pullRefreshState = rememberPullToRefreshState()
-
-    val filteredChats = chats.filter { 
-        !it.isBlocked &&
-        !it.isArchived &&
-        (currentQuery.isBlank() || 
-        it.title.contains(currentQuery, ignoreCase = true) || 
-        it.lastMessage.contains(currentQuery, ignoreCase = true)) &&
-        when (currentTab) {
-            is ChatTabItem.All -> true
-            is ChatTabItem.Personal -> !it.isGroup && !it.isChannel && !it.isBot // Personal
-            is ChatTabItem.Groups -> it.isGroup
-            is ChatTabItem.Channels -> it.isChannel
-            is ChatTabItem.Bots -> it.isBot
-            is ChatTabItem.Custom -> currentTab.folder.matches(it)
-        }
-    }
-
-    val dbSearchResults by remember(currentQuery, safeTabIndex) {
-        val searchCategoryIndex = when (currentTab) {
-            is ChatTabItem.All -> 0
-            is ChatTabItem.Personal -> 1
-            is ChatTabItem.Groups -> 2
-            is ChatTabItem.Channels -> 3
-            is ChatTabItem.Bots -> 4
-            is ChatTabItem.Custom -> 0
-        }
-        viewModel.searchDatabase(currentQuery, searchCategoryIndex)
-    }.collectAsStateWithLifecycle(initialValue = DatabaseSearchResults())
     
     Column(modifier = Modifier.fillMaxSize()) {
         StoriesPanel(
@@ -966,7 +958,7 @@ fun ChatListScreen(viewModel: AppViewModel, navController: NavController, isStor
                 containerColor = Color.Transparent,
                 contentColor = MaterialTheme.colorScheme.onSurface,
                 edgePadding = 16.dp,
-                divider = { HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha=0.1f)) },
+                divider = { HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)) },
                 indicator = { tabPositions ->
                     if (safeTabIndex in tabPositions.indices) {
                         TabRowDefaults.SecondaryIndicator(
@@ -979,6 +971,8 @@ fun ChatListScreen(viewModel: AppViewModel, navController: NavController, isStor
             ) {
                 tabs.forEachIndexed { index, tabItem ->
                     val isSelected = safeTabIndex == index
+                    var menuExpanded by remember { mutableStateOf(false) }
+
                     val tabSemanticLabel = when (tabItem) {
                         is ChatTabItem.All -> "Все чаты"
                         is ChatTabItem.Personal -> "Личные чаты"
@@ -998,54 +992,198 @@ fun ChatListScreen(viewModel: AppViewModel, navController: NavController, isStor
                         }
                     }
 
-                    Tab(
-                        selected = isSelected,
-                        onClick = { selectedTabIndex = index },
-                        text = {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center
-                            ) {
-                                if (tabItem.emoji != null) {
-                                    Text(tabItem.emoji!!, fontSize = 14.sp)
-                                    Spacer(Modifier.width(4.dp))
-                                } else if (tabItem is ChatTabItem.Custom && tabItem.colorHex != null) {
-                                    val dotColor = runCatching { Color(android.graphics.Color.parseColor(tabItem.colorHex)) }.getOrDefault(MaterialTheme.colorScheme.primary)
-                                    Box(
-                                        modifier = Modifier
-                                            .size(8.dp)
-                                            .clip(CircleShape)
-                                            .background(dotColor)
-                                    )
-                                    Spacer(Modifier.width(6.dp))
+                    Box {
+                        Tab(
+                            selected = isSelected,
+                            onClick = {
+                                coroutineScope.launch {
+                                    pagerState.animateScrollToPage(index)
                                 }
-                                Text(
-                                    text = tabItem.title,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                )
-                                if (tabUnreadCount > 0) {
-                                    Spacer(Modifier.width(6.dp))
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(10.dp))
-                                            .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
-                                            .padding(horizontal = 6.dp, vertical = 1.dp)
-                                    ) {
-                                        Text(
-                                            text = tabUnreadCount.toString(),
-                                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                                            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                            text = {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    if (tabItem.emoji != null) {
+                                        Text(tabItem.emoji!!, fontSize = 14.sp)
+                                        Spacer(Modifier.width(4.dp))
+                                    } else if (tabItem is ChatTabItem.Custom && tabItem.colorHex != null) {
+                                        val dotColor = runCatching { Color(android.graphics.Color.parseColor(tabItem.colorHex)) }.getOrDefault(MaterialTheme.colorScheme.primary)
+                                        Box(
+                                            modifier = Modifier
+                                                .size(8.dp)
+                                                .clip(CircleShape)
+                                                .background(dotColor)
                                         )
+                                        Spacer(Modifier.width(6.dp))
+                                    }
+                                    Text(
+                                        text = tabItem.title,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                    if (tabUnreadCount > 0) {
+                                        Spacer(Modifier.width(6.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
+                                                .padding(horizontal = 6.dp, vertical = 1.dp)
+                                        ) {
+                                            Text(
+                                                text = tabUnreadCount.toString(),
+                                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                                                color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
                                     }
                                 }
+                            },
+                            unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .pointerInput(tabItem) {
+                                    detectTapGestures(
+                                        onTap = {
+                                            coroutineScope.launch {
+                                                pagerState.animateScrollToPage(index)
+                                            }
+                                        },
+                                        onLongPress = {
+                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            menuExpanded = true
+                                        }
+                                    )
+                                }
+                                .semantics {
+                                    role = Role.Tab
+                                    contentDescription = "Вкладка $tabSemanticLabel"
+                                }
+                        )
+
+                        // Telegram context popup menu anchored to the tab
+                        DropdownMenu(
+                            expanded = menuExpanded,
+                            onDismissRequest = { menuExpanded = false },
+                            modifier = Modifier
+                                .background(MaterialTheme.colorScheme.surface)
+                                .widthIn(min = 230.dp),
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            val tabChats = remember(tabItem, chats) {
+                                when (tabItem) {
+                                    is ChatTabItem.All -> chats.filter { !it.isArchived && !it.isBlocked }
+                                    is ChatTabItem.Personal -> chats.filter { !it.isGroup && !it.isChannel && !it.isBot && !it.isArchived && !it.isBlocked }
+                                    is ChatTabItem.Groups -> chats.filter { it.isGroup && !it.isArchived && !it.isBlocked }
+                                    is ChatTabItem.Channels -> chats.filter { it.isChannel && !it.isArchived && !it.isBlocked }
+                                    is ChatTabItem.Bots -> chats.filter { it.isBot && !it.isArchived && !it.isBlocked }
+                                    is ChatTabItem.Custom -> chats.filter { !it.isArchived && !it.isBlocked && tabItem.folder.matches(it) }
+                                }
                             }
-                        },
-                        unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.semantics {
-                            role = Role.Tab
-                            contentDescription = "Вкладка $tabSemanticLabel"
+                            val isAllMuted = tabChats.isNotEmpty() && tabChats.all { it.isMuted }
+
+                            // 1. Изменить порядок
+                            DropdownMenuItem(
+                                text = { Text("Изменить порядок", fontWeight = FontWeight.Medium) },
+                                leadingIcon = {
+                                    Icon(Icons.Filled.SwapHoriz, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                },
+                                onClick = {
+                                    menuExpanded = false
+                                    navController.navigate(AppDestinations.SETTINGS_FOLDERS)
+                                }
+                            )
+
+                            // 2. Настроить папку
+                            DropdownMenuItem(
+                                text = { Text(if (tabItem is ChatTabItem.Custom) "Настроить папку" else "Настроить папки", fontWeight = FontWeight.Medium) },
+                                leadingIcon = {
+                                    Icon(Icons.Filled.Tune, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                },
+                                onClick = {
+                                    menuExpanded = false
+                                    if (tabItem is ChatTabItem.Custom) {
+                                        navController.navigate("${AppDestinations.SETTINGS_FOLDER_EDIT}?folderId=${tabItem.folder.id}")
+                                    } else {
+                                        navController.navigate(AppDestinations.SETTINGS_FOLDERS)
+                                    }
+                                }
+                            )
+
+                            // 3. Вкл./Выкл. уведомления
+                            DropdownMenuItem(
+                                text = { Text(if (isAllMuted) "Вкл. уведомления" else "Выкл. уведомления", fontWeight = FontWeight.Medium) },
+                                leadingIcon = {
+                                    Icon(
+                                        if (isAllMuted) Icons.Filled.Notifications else Icons.Filled.NotificationsOff,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                },
+                                onClick = {
+                                    menuExpanded = false
+                                    val newMuteState = !isAllMuted
+                                    viewModel.toggleChatsMute(tabChats.map { it.id }, newMuteState)
+                                    Toast.makeText(
+                                        context,
+                                        if (newMuteState) "Уведомления для папки отключены" else "Уведомления для папки включены",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            )
+
+                            // 4. Прочитать все
+                            DropdownMenuItem(
+                                text = { Text("Прочитать все", fontWeight = FontWeight.Medium) },
+                                leadingIcon = {
+                                    Icon(Icons.Default.DoneAll, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                },
+                                onClick = {
+                                    menuExpanded = false
+                                    val unreadIds = tabChats.filter { it.unreadCount > 0 }.map { it.id }
+                                    viewModel.markChatsAsRead(unreadIds.ifEmpty { tabChats.map { it.id } }, currentUserId)
+                                    Toast.makeText(context, "Все чаты в папке прочитаны", Toast.LENGTH_SHORT).show()
+                                }
+                            )
+
+                            // 5. Поделиться
+                            DropdownMenuItem(
+                                text = { Text("Поделиться", fontWeight = FontWeight.Medium) },
+                                leadingIcon = {
+                                    Icon(Icons.Filled.Share, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                },
+                                onClick = {
+                                    menuExpanded = false
+                                    if (tabItem is ChatTabItem.Custom) {
+                                        showShareFolderDialog = tabItem.folder
+                                    } else {
+                                        val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                            putExtra(Intent.EXTRA_TEXT, "Присоединяйтесь ко мне в KuoteX Messenger: https://kuotex.me")
+                                            type = "text/plain"
+                                        }
+                                        context.startActivity(Intent.createChooser(sendIntent, "Поделиться"))
+                                    }
+                                }
+                            )
+
+                            // 6. Удалить папку (только для кастомных папок)
+                            if (tabItem is ChatTabItem.Custom) {
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(vertical = 4.dp),
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Удалить папку", color = Color(0xFFF44336), fontWeight = FontWeight.SemiBold) },
+                                    leadingIcon = {
+                                        Icon(Icons.Filled.Delete, contentDescription = null, tint = Color(0xFFF44336))
+                                    },
+                                    onClick = {
+                                        menuExpanded = false
+                                        showDeleteFolderDialog = tabItem.folder
+                                    }
+                                )
+                            }
                         }
-                    )
+                    }
                 }
             }
 
@@ -1064,236 +1202,430 @@ fun ChatListScreen(viewModel: AppViewModel, navController: NavController, isStor
             }
         }
 
-        
-        PullToRefreshBox(
-            isRefreshing = isRefreshing,
-            onRefresh = { viewModel.syncMessages() },
-            state = pullRefreshState,
-            modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
-        ) {
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+        ) { page ->
+            val pageTab = tabs.getOrElse(page) { ChatTabItem.All }
+            val pageQuery = tabSearchQueries[page] ?: ""
 
-            if (currentQuery.isBlank() && selectedTabIndex == 0) {
-                item {
-                    val archivedCount = chats.count { it.isArchived && !it.isBlocked }
-                    if (archivedCount > 0) {
-                        ListItem(
-                            headlineContent = { Text("Archived Chats", fontWeight = FontWeight.Bold) },
-                            supportingContent = { Text("$archivedCount chat${if(archivedCount>1)"s" else ""}") },
-                            leadingContent = {
-                                Box(
+            val pageFilteredChats = remember(chats, pageTab, pageQuery) {
+                chats.filter { chat ->
+                    !chat.isBlocked &&
+                    !chat.isArchived &&
+                    (pageQuery.isBlank() || 
+                    chat.title.contains(pageQuery, ignoreCase = true) || 
+                    chat.lastMessage.contains(pageQuery, ignoreCase = true)) &&
+                    when (pageTab) {
+                        is ChatTabItem.All -> true
+                        is ChatTabItem.Personal -> !chat.isGroup && !chat.isChannel && !chat.isBot
+                        is ChatTabItem.Groups -> chat.isGroup
+                        is ChatTabItem.Channels -> chat.isChannel
+                        is ChatTabItem.Bots -> chat.isBot
+                        is ChatTabItem.Custom -> pageTab.folder.matches(chat)
+                    }
+                }
+            }
+
+            val pageDbSearchResults by remember(pageQuery, pageTab) {
+                val searchCategoryIndex = when (pageTab) {
+                    is ChatTabItem.All -> 0
+                    is ChatTabItem.Personal -> 1
+                    is ChatTabItem.Groups -> 2
+                    is ChatTabItem.Channels -> 3
+                    is ChatTabItem.Bots -> 4
+                    is ChatTabItem.Custom -> 0
+                }
+                viewModel.searchDatabase(pageQuery, searchCategoryIndex)
+            }.collectAsStateWithLifecycle(initialValue = DatabaseSearchResults())
+
+            val pagePullRefreshState = rememberPullToRefreshState()
+
+            PullToRefreshBox(
+                isRefreshing = isRefreshing,
+                onRefresh = { viewModel.syncMessages() },
+                state = pagePullRefreshState,
+                modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp)
+            ) {
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    if (pageQuery.isBlank() && page == 0) {
+                        item {
+                            val archivedCount = chats.count { it.isArchived && !it.isBlocked }
+                            if (archivedCount > 0) {
+                                ListItem(
+                                    headlineContent = { Text("Archived Chats", fontWeight = FontWeight.Bold) },
+                                    supportingContent = { Text("$archivedCount chat${if (archivedCount > 1) "s" else ""}") },
+                                    leadingContent = {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(48.dp)
+                                                .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(Icons.Filled.Archive, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                    },
                                     modifier = Modifier
-                                        .size(48.dp)
-                                        .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(Icons.Filled.Archive, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                            },
-                            modifier = Modifier
-                                .clickable(
-                                    onClick = { navController.navigate("archived_chats") },
-                                    onClickLabel = "Открыть архивные чаты"
+                                        .clickable(
+                                            onClick = { navController.navigate("archived_chats") },
+                                            onClickLabel = "Открыть архивные чаты"
+                                        )
+                                        .semantics(mergeDescendants = true) {
+                                            role = Role.Button
+                                            contentDescription = "Архивные чаты, $archivedCount чатов"
+                                        }
                                 )
-                                .semantics(mergeDescendants = true) {
-                                    role = Role.Button
-                                    contentDescription = "Архивные чаты, $archivedCount чатов"
-                                }
-                        )
-                    }
-                }
-            }
-
-            if (currentQuery.isNotBlank() && filteredChats.isNotEmpty() && !dbSearchResults.isEmpty) {
-                item {
-                    Text(
-                        "Чаты и сообщения",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 4.dp)
-                    )
-                }
-            }
-
-            items(filteredChats, key = { it.id }) { chat ->
-                val chatFolderTags = remember(customFolders, chatTagsEnabled, chat) {
-                    if (!chatTagsEnabled) emptyList()
-                    else {
-                        customFolders
-                            .filter { it.matches(chat) }
-                            .map { f ->
-                                val col = runCatching { Color(android.graphics.Color.parseColor(f.colorHex)) }
-                                    .getOrDefault(Color(0xFF2196F3))
-                                FolderTagInfo(f.name, col)
                             }
+                        }
                     }
-                }
 
-                SwipeableChatListItem(
-                    chat = chat, 
-                    isTyping = typingChats.contains(chat.id),
-                    draftText = drafts[chat.id],
-                    viewModel = viewModel,
-                    presence = userPresences[chat.id],
-                    folderTags = chatFolderTags,
-                    onClick = { 
-                        focusManager.clearFocus()
-                        keyboardController?.hide()
-                        navController.navigate("chat/${chat.id}") 
-                    },
-                    onAvatarClick = { 
-                        focusManager.clearFocus()
-                        keyboardController?.hide()
-                        navController.navigate("profile/${chat.id}") 
-                    }
-                )
-            }
-
-            // --- Database Search Results ---
-            if (currentQuery.isNotBlank()) {
-                val nonLocalChannels = dbSearchResults.channels.filter { ch -> filteredChats.none { it.id == ch.id } }
-                val nonLocalGroups = dbSearchResults.groups.filter { gr -> filteredChats.none { it.id == gr.id } }
-                val nonLocalBots = dbSearchResults.bots.filter { b -> filteredChats.none { it.id == b.id } }
-                val foundUsers = dbSearchResults.users
-
-                // Channels section
-                if (nonLocalChannels.isNotEmpty()) {
-                    item {
-                        DatabaseSearchSectionHeader(
-                            title = "Публичные каналы",
-                            icon = Icons.Filled.Campaign,
-                            count = nonLocalChannels.size
-                        )
-                    }
-                    items(nonLocalChannels, key = { "db_channel_${it.id}" }) { channel ->
-                        ChannelSearchResultItem(
-                            channel = channel,
-                            onClick = {
-                                focusManager.clearFocus()
-                                keyboardController?.hide()
-                                viewModel.openOrCreateChat(channel)
-                                navController.navigate("chat/${channel.id}")
-                            }
-                        )
-                    }
-                }
-
-                // Groups section
-                if (nonLocalGroups.isNotEmpty()) {
-                    item {
-                        DatabaseSearchSectionHeader(
-                            title = "Публичные группы",
-                            icon = Icons.Filled.Group,
-                            count = nonLocalGroups.size
-                        )
-                    }
-                    items(nonLocalGroups, key = { "db_group_${it.id}" }) { group ->
-                        GroupSearchResultItem(
-                            group = group,
-                            onClick = {
-                                focusManager.clearFocus()
-                                keyboardController?.hide()
-                                viewModel.openOrCreateChat(group)
-                                navController.navigate("chat/${group.id}")
-                            }
-                        )
-                    }
-                }
-
-                // Bots section
-                if (nonLocalBots.isNotEmpty()) {
-                    item {
-                        DatabaseSearchSectionHeader(
-                            title = "Боты KuoteX",
-                            icon = Icons.Filled.SmartToy,
-                            count = nonLocalBots.size
-                        )
-                    }
-                    items(nonLocalBots, key = { "db_bot_${it.id}" }) { bot ->
-                        BotSearchResultItem(
-                            bot = bot,
-                            onClick = {
-                                focusManager.clearFocus()
-                                keyboardController?.hide()
-                                viewModel.openOrCreateBotChat(bot)
-                                navController.navigate("chat/${bot.id}")
-                            }
-                        )
-                    }
-                }
-
-                // Users section
-                if (foundUsers.isNotEmpty()) {
-                    item {
-                        DatabaseSearchSectionHeader(
-                            title = if (selectedTabIndex == 1) "Найденные пользователи" else "Пользователи",
-                            icon = Icons.Filled.Person,
-                            count = foundUsers.size
-                        )
-                    }
-                    items(foundUsers, key = { "db_user_${it.id}" }) { user ->
-                        UserSearchResultItem(
-                            user = user,
-                            onClick = {
-                                focusManager.clearFocus()
-                                keyboardController?.hide()
-                                viewModel.openOrCreateUserChat(user)
-                                navController.navigate("chat/${user.id}")
-                            },
-                            onAvatarClick = {
-                                focusManager.clearFocus()
-                                keyboardController?.hide()
-                                viewModel.openOrCreateUserChat(user)
-                                navController.navigate("profile/${user.id}")
-                            }
-                        )
-                    }
-                }
-
-                // Empty state if nothing matches locally or in the database
-                if (filteredChats.isEmpty() && dbSearchResults.isEmpty) {
-                    item {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 48.dp, horizontal = 24.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.SearchOff,
-                                contentDescription = null,
-                                modifier = Modifier.size(64.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
+                    if (pageQuery.isNotBlank() && pageFilteredChats.isNotEmpty() && !pageDbSearchResults.isEmpty) {
+                        item {
                             Text(
-                                text = "Ничего не найдено",
-                                style = MaterialTheme.typography.titleMedium,
+                                "Чаты и сообщения",
+                                style = MaterialTheme.typography.labelLarge,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 4.dp)
                             )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            val hintText = when (selectedTabIndex) {
-                                0 -> "Попробуйте изменить название канала, группы, @username или имя"
-                                1 -> "Попробуйте поискать пользователя по @username или имени"
-                                2 -> "Попробуйте ввести другое название группы"
-                                3 -> "Попробуйте ввести другое название канала"
-                                4 -> "Попробуйте ввести @username или имя бота"
-                                else -> "Попробуйте изменить поисковый запрос"
+                        }
+                    }
+
+                    // Empty state when folder has no chats yet
+                    if (pageFilteredChats.isEmpty() && pageQuery.isBlank()) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 48.dp, horizontal = 24.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(pageTab.emoji ?: "📁", fontSize = 44.sp)
+                                    Spacer(Modifier.height(12.dp))
+                                    Text(
+                                        text = if (pageTab is ChatTabItem.Custom) "В папке «${pageTab.title}» пока нет чатов" else "В этой вкладке пока нет чатов",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Spacer(Modifier.height(6.dp))
+                                    Text(
+                                        text = "Нажмите «Настроить папку», чтобы добавить чаты или настроить правила включения.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                    )
+                                    if (pageTab is ChatTabItem.Custom) {
+                                        Spacer(Modifier.height(16.dp))
+                                        FilledTonalButton(
+                                            onClick = {
+                                                navController.navigate("${AppDestinations.SETTINGS_FOLDER_EDIT}?folderId=${pageTab.folder.id}")
+                                            }
+                                        ) {
+                                            Icon(Icons.Filled.Tune, contentDescription = null, modifier = Modifier.size(18.dp))
+                                            Spacer(Modifier.width(8.dp))
+                                            Text("Настроить папку")
+                                        }
+                                    }
+                                }
                             }
-                            Text(
-                                text = hintText,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                            )
+                        }
+                    }
+
+                    items(pageFilteredChats, key = { it.id }) { chat ->
+                        val chatFolderTags = remember(customFolders, chatTagsEnabled, chat) {
+                            if (!chatTagsEnabled) emptyList()
+                            else {
+                                customFolders
+                                    .filter { it.matches(chat) }
+                                    .map { f ->
+                                        val col = runCatching { Color(android.graphics.Color.parseColor(f.colorHex)) }
+                                            .getOrDefault(Color(0xFF2196F3))
+                                        FolderTagInfo(f.name, col)
+                                    }
+                            }
+                        }
+
+                        SwipeableChatListItem(
+                            chat = chat, 
+                            isTyping = typingChats.contains(chat.id),
+                            draftText = drafts[chat.id],
+                            viewModel = viewModel,
+                            presence = userPresences[chat.id],
+                            folderTags = chatFolderTags,
+                            onClick = { 
+                                focusManager.clearFocus()
+                                keyboardController?.hide()
+                                navController.navigate("chat/${chat.id}") 
+                            },
+                            onAvatarClick = { 
+                                focusManager.clearFocus()
+                                keyboardController?.hide()
+                                navController.navigate("profile/${chat.id}") 
+                            }
+                        )
+                    }
+
+                    // --- Database Search Results ---
+                    if (pageQuery.isNotBlank()) {
+                        val nonLocalChannels = pageDbSearchResults.channels.filter { ch -> pageFilteredChats.none { it.id == ch.id } }
+                        val nonLocalGroups = pageDbSearchResults.groups.filter { gr -> pageFilteredChats.none { it.id == gr.id } }
+                        val nonLocalBots = pageDbSearchResults.bots.filter { b -> pageFilteredChats.none { it.id == b.id } }
+                        val foundUsers = pageDbSearchResults.users
+
+                        // Channels section
+                        if (nonLocalChannels.isNotEmpty()) {
+                            item {
+                                DatabaseSearchSectionHeader(
+                                    title = "Публичные каналы",
+                                    icon = Icons.Filled.Campaign,
+                                    count = nonLocalChannels.size
+                                )
+                            }
+                            items(nonLocalChannels, key = { "db_channel_${it.id}" }) { channel ->
+                                ChannelSearchResultItem(
+                                    channel = channel,
+                                    onClick = {
+                                        focusManager.clearFocus()
+                                        keyboardController?.hide()
+                                        viewModel.openOrCreateChat(channel)
+                                        navController.navigate("chat/${channel.id}")
+                                    }
+                                )
+                            }
+                        }
+
+                        // Groups section
+                        if (nonLocalGroups.isNotEmpty()) {
+                            item {
+                                DatabaseSearchSectionHeader(
+                                    title = "Публичные группы",
+                                    icon = Icons.Filled.Group,
+                                    count = nonLocalGroups.size
+                                )
+                            }
+                            items(nonLocalGroups, key = { "db_group_${it.id}" }) { group ->
+                                GroupSearchResultItem(
+                                    group = group,
+                                    onClick = {
+                                        focusManager.clearFocus()
+                                        keyboardController?.hide()
+                                        viewModel.openOrCreateChat(group)
+                                        navController.navigate("chat/${group.id}")
+                                    }
+                                )
+                            }
+                        }
+
+                        // Bots section
+                        if (nonLocalBots.isNotEmpty()) {
+                            item {
+                                DatabaseSearchSectionHeader(
+                                    title = "Боты KuoteX",
+                                    icon = Icons.Filled.SmartToy,
+                                    count = nonLocalBots.size
+                                )
+                            }
+                            items(nonLocalBots, key = { "db_bot_${it.id}" }) { bot ->
+                                BotSearchResultItem(
+                                    bot = bot,
+                                    onClick = {
+                                        focusManager.clearFocus()
+                                        keyboardController?.hide()
+                                        viewModel.openOrCreateBotChat(bot)
+                                        navController.navigate("chat/${bot.id}")
+                                    }
+                                )
+                            }
+                        }
+
+                        // Users section
+                        if (foundUsers.isNotEmpty()) {
+                            item {
+                                DatabaseSearchSectionHeader(
+                                    title = if (safeTabIndex == 1) "Найденные пользователи" else "Пользователи",
+                                    icon = Icons.Filled.Person,
+                                    count = foundUsers.size
+                                )
+                            }
+                            items(foundUsers, key = { "db_user_${it.id}" }) { user ->
+                                UserSearchResultItem(
+                                    user = user,
+                                    onClick = {
+                                        focusManager.clearFocus()
+                                        keyboardController?.hide()
+                                        viewModel.openOrCreateUserChat(user)
+                                        navController.navigate("chat/${user.id}")
+                                    },
+                                    onAvatarClick = {
+                                        focusManager.clearFocus()
+                                        keyboardController?.hide()
+                                        viewModel.openOrCreateUserChat(user)
+                                        navController.navigate("profile/${user.id}")
+                                    }
+                                )
+                            }
+                        }
+
+                        // Empty state if nothing matches locally or in the database
+                        if (pageFilteredChats.isEmpty() && pageDbSearchResults.isEmpty) {
+                            item {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 48.dp, horizontal = 24.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.SearchOff,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(64.dp),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                    )
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    Text(
+                                        text = "Ничего не найдено",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    val hintText = when (safeTabIndex) {
+                                        0 -> "Попробуйте изменить название канала, группы, @username или имя"
+                                        1 -> "Попробуйте поискать пользователя по @username или имени"
+                                        2 -> "Попробуйте ввести другое название группы"
+                                        3 -> "Попробуйте ввести другое название канала"
+                                        4 -> "Попробуйте ввести @username или имя бота"
+                                        else -> "Попробуйте изменить поисковый запрос"
+                                    }
+                                    Text(
+                                        text = hintText,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                    )
+                                }
+                            }
                         }
                     }
                 }
             }
         }
+
+        // Delete Folder Dialog
+        if (showDeleteFolderDialog != null) {
+            val folder = showDeleteFolderDialog!!
+            AlertDialog(
+                onDismissRequest = { showDeleteFolderDialog = null },
+                shape = RoundedCornerShape(24.dp),
+                title = { Text("Удалить папку?", fontWeight = FontWeight.Bold) },
+                text = {
+                    Text("Вы уверены, что хотите удалить папку «${folder.name}»? Чаты останутся в общем списке чатов.")
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            viewModel.deleteChatFolder(folder.id)
+                            showDeleteFolderDialog = null
+                            Toast.makeText(context, "Папка «${folder.name}» удалена", Toast.LENGTH_SHORT).show()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336))
+                    ) {
+                        Text("Удалить", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteFolderDialog = null }) {
+                        Text("Отмена")
+                    }
+                }
+            )
+        }
+
+        // Share Folder Dialog
+        if (showShareFolderDialog != null) {
+            val folder = showShareFolderDialog!!
+            val inviteUrl = "https://kuotex.me/addlist/${folder.id.take(8)}"
+            AlertDialog(
+                onDismissRequest = { showShareFolderDialog = null },
+                shape = RoundedCornerShape(24.dp),
+                icon = {
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primaryContainer),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(folder.emoji ?: "📁", fontSize = 28.sp)
+                    }
+                },
+                title = {
+                    Text("Поделиться папкой «${folder.name}»", textAlign = androidx.compose.ui.text.style.TextAlign.Center, fontWeight = FontWeight.Bold)
+                },
+                text = {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            "Любой пользователь с этой ссылкой сможет добавить папку «${folder.name}» и состоящие в ней публичные чаты.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Filled.Link, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    inviteUrl,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                putExtra(Intent.EXTRA_TEXT, "Добавить папку с чатами «${folder.name}» в KuoteX:\n$inviteUrl")
+                                type = "text/plain"
+                            }
+                            context.startActivity(Intent.createChooser(sendIntent, "Поделиться ссылкой"))
+                            showShareFolderDialog = null
+                        }
+                    ) {
+                        Icon(Icons.Filled.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Поделиться")
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = {
+                            clipboardManager.setText(AnnotatedString(inviteUrl))
+                            Toast.makeText(context, "Ссылка скопирована в буфер обмена", Toast.LENGTH_SHORT).show()
+                            showShareFolderDialog = null
+                        }
+                    ) {
+                        Text("Копировать")
+                    }
+                }
+            )
         }
     }
 }

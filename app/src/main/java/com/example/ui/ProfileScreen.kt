@@ -6,6 +6,12 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.unit.Velocity
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -284,6 +290,51 @@ fun ProfileScreen(
     }
 
     val listState = rememberLazyListState()
+    var overscrollOffset by remember { mutableFloatStateOf(0f) }
+
+    val nestedScrollConnection = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (overscrollOffset > 0f && available.y < 0) {
+                    val consumed = available.y.coerceAtLeast(-overscrollOffset)
+                    overscrollOffset += consumed
+                    return Offset(0f, consumed)
+                }
+                return Offset.Zero
+            }
+
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource
+            ): Offset {
+                if (available.y > 0 && listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0) {
+                    val damping = (1f - (overscrollOffset / 500f)).coerceIn(0.18f, 0.55f)
+                    val delta = available.y * damping
+                    overscrollOffset += delta
+                    return Offset(0f, available.y)
+                }
+                return Offset.Zero
+            }
+
+            override suspend fun onPreFling(available: Velocity): Velocity {
+                if (overscrollOffset > 0f) {
+                    overscrollOffset = 0f
+                }
+                return Velocity.Zero
+            }
+        }
+    }
+
+    val animatedOverscroll by animateFloatAsState(
+        targetValue = overscrollOffset,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioLowBouncy,
+            stiffness = Spring.StiffnessLow
+        ),
+        label = "profile_avatar_overscroll"
+    )
+
     val isAtTop by remember {
         derivedStateOf {
             listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset <= 6
@@ -297,6 +348,9 @@ fun ProfileScreen(
         ),
         label = "profile_avatar_top_scale"
     )
+    val overscrollScale = (animatedOverscroll / 320f).coerceIn(0f, 0.32f)
+    val totalAvatarScale = atTopScale + overscrollScale
+    val avatarTranslationY = if (animatedOverscroll > 0f) animatedOverscroll * 0.45f else 0f
 
     Scaffold(
         containerColor = Color(0xFF000000),
@@ -339,6 +393,7 @@ fun ProfileScreen(
             state = listState,
             modifier = Modifier
                 .fillMaxSize()
+                .nestedScroll(nestedScrollConnection)
                 .padding(padding)
         ) {
             // 1. HERO HEADER IMAGE WITH OVERLAYS (matching Screenshot 1 & 3)
@@ -358,9 +413,10 @@ fun ProfileScreen(
                         modifier = Modifier
                             .fillMaxSize()
                             .graphicsLayer {
-                                scaleX = atTopScale
-                                scaleY = atTopScale
+                                scaleX = totalAvatarScale
+                                scaleY = totalAvatarScale
                                 transformOrigin = TransformOrigin(0.5f, 0.35f)
+                                translationY = avatarTranslationY
                             },
                         contentScale = ContentScale.Crop
                     )

@@ -333,6 +333,22 @@ class AppViewModel(
         return _chatFolders.value.find { it.id == folderId }
     }
 
+    fun markChatsAsRead(chatIds: List<String>, myUserId: String) {
+        viewModelScope.launch {
+            chatIds.forEach { chatId ->
+                repository.markAsRead(chatId, myUserId)
+            }
+        }
+    }
+
+    fun toggleChatsMute(chatIds: List<String>, isMuted: Boolean) {
+        viewModelScope.launch {
+            chatIds.forEach { chatId ->
+                repository.updateMuteStatus(chatId, isMuted)
+            }
+        }
+    }
+
     private val _maxCacheSizeIndex = MutableStateFlow(3) // 0: 5GB, 1: 16GB, 2: 32GB, 3: Infinity
     val maxCacheSizeIndex: StateFlow<Int> = _maxCacheSizeIndex.asStateFlow()
 
