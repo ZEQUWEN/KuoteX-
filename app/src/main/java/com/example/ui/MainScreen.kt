@@ -60,6 +60,12 @@ import kotlinx.coroutines.launch
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.input.pointer.PointerInputChange
+import androidx.compose.ui.input.pointer.PointerType
+import androidx.compose.ui.input.pointer.isSecondaryPressed
+import kotlinx.coroutines.delay
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -80,6 +86,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -880,6 +887,9 @@ fun ChatListScreen(viewModel: AppViewModel, navController: NavController, isStor
 
     var showDeleteFolderDialog by remember { mutableStateOf<ChatFolder?>(null) }
     var showShareFolderDialog by remember { mutableStateOf<ChatFolder?>(null) }
+    var activeMenuTab by remember { mutableStateOf<ChatTabItem?>(null) }
+    var pressingTabIndex by remember { mutableStateOf<Int?>(null) }
+    var pressHoldProgress by remember { mutableFloatStateOf(0f) }
 
     val safeTabIndex = pagerState.currentPage.coerceIn(0, (tabs.size - 1).coerceAtLeast(0))
     val currentTab = tabs.getOrElse(safeTabIndex) { ChatTabItem.All }
@@ -949,256 +959,194 @@ fun ChatListScreen(viewModel: AppViewModel, navController: NavController, isStor
 
         }
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
+        ScrollableTabRow(
+            selectedTabIndex = safeTabIndex,
+            containerColor = Color.Transparent,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            edgePadding = 16.dp,
+            divider = { HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)) },
+            indicator = { tabPositions ->
+                if (safeTabIndex in tabPositions.indices) {
+                    TabRowDefaults.SecondaryIndicator(
+                        modifier = Modifier.tabIndicatorOffset(tabPositions[safeTabIndex]),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
         ) {
-            ScrollableTabRow(
-                selectedTabIndex = safeTabIndex,
-                containerColor = Color.Transparent,
-                contentColor = MaterialTheme.colorScheme.onSurface,
-                edgePadding = 16.dp,
-                divider = { HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)) },
-                indicator = { tabPositions ->
-                    if (safeTabIndex in tabPositions.indices) {
-                        TabRowDefaults.SecondaryIndicator(
-                            modifier = Modifier.tabIndicatorOffset(tabPositions[safeTabIndex]),
-                            color = MaterialTheme.colorScheme.primary
-                        )
+            tabs.forEachIndexed { index, tabItem ->
+                val isSelected = safeTabIndex == index
+                val tabSemanticLabel = when (tabItem) {
+                    is ChatTabItem.All -> "Все чаты"
+                    is ChatTabItem.Personal -> "Личные чаты"
+                    is ChatTabItem.Groups -> "Группы"
+                    is ChatTabItem.Channels -> "Каналы"
+                    is ChatTabItem.Bots -> "Боты"
+                    is ChatTabItem.Custom -> tabItem.title
+                }
+                val tabUnreadCount = remember(chats, tabItem) {
+                    when (tabItem) {
+                        is ChatTabItem.All -> chats.filter { !it.isArchived && !it.isBlocked }.sumOf { it.unreadCount }
+                        is ChatTabItem.Personal -> chats.filter { !it.isGroup && !it.isChannel && !it.isBot && !it.isArchived && !it.isBlocked }.sumOf { it.unreadCount }
+                        is ChatTabItem.Groups -> chats.filter { it.isGroup && !it.isArchived && !it.isBlocked }.sumOf { it.unreadCount }
+                        is ChatTabItem.Channels -> chats.filter { it.isChannel && !it.isArchived && !it.isBlocked }.sumOf { it.unreadCount }
+                        is ChatTabItem.Bots -> chats.filter { it.isBot && !it.isArchived && !it.isBlocked }.sumOf { it.unreadCount }
+                        is ChatTabItem.Custom -> chats.filter { !it.isArchived && !it.isBlocked && tabItem.folder.matches(it) }.sumOf { it.unreadCount }
                     }
-                },
-                modifier = Modifier.weight(1f)
-            ) {
-                tabs.forEachIndexed { index, tabItem ->
-                    val isSelected = safeTabIndex == index
-                    var menuExpanded by remember { mutableStateOf(false) }
+                }
 
-                    val tabSemanticLabel = when (tabItem) {
-                        is ChatTabItem.All -> "Все чаты"
-                        is ChatTabItem.Personal -> "Личные чаты"
-                        is ChatTabItem.Groups -> "Группы"
-                        is ChatTabItem.Channels -> "Каналы"
-                        is ChatTabItem.Bots -> "Боты"
-                        is ChatTabItem.Custom -> tabItem.title
-                    }
-                    val tabUnreadCount = remember(chats, tabItem) {
-                        when (tabItem) {
-                            is ChatTabItem.All -> chats.filter { !it.isArchived && !it.isBlocked }.sumOf { it.unreadCount }
-                            is ChatTabItem.Personal -> chats.filter { !it.isGroup && !it.isChannel && !it.isBot && !it.isArchived && !it.isBlocked }.sumOf { it.unreadCount }
-                            is ChatTabItem.Groups -> chats.filter { it.isGroup && !it.isArchived && !it.isBlocked }.sumOf { it.unreadCount }
-                            is ChatTabItem.Channels -> chats.filter { it.isChannel && !it.isArchived && !it.isBlocked }.sumOf { it.unreadCount }
-                            is ChatTabItem.Bots -> chats.filter { it.isBot && !it.isArchived && !it.isBlocked }.sumOf { it.unreadCount }
-                            is ChatTabItem.Custom -> chats.filter { !it.isArchived && !it.isBlocked && tabItem.folder.matches(it) }.sumOf { it.unreadCount }
+                val isPressing = pressingTabIndex == index
+                val tabScale by animateFloatAsState(
+                    targetValue = if (isPressing) 0.95f else 1.0f,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessLow
+                    ),
+                    label = "tab_scale_$index"
+                )
+
+                Box(
+                    modifier = Modifier
+                        .graphicsLayer {
+                            scaleX = tabScale
+                            scaleY = tabScale
                         }
-                    }
-
-                    Box {
-                        Tab(
-                            selected = isSelected,
-                            onClick = {
-                                coroutineScope.launch {
-                                    pagerState.animateScrollToPage(index)
-                                }
-                            },
-                            text = {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
-                                ) {
-                                    if (tabItem.emoji != null) {
-                                        Text(tabItem.emoji!!, fontSize = 14.sp)
-                                        Spacer(Modifier.width(4.dp))
-                                    } else if (tabItem is ChatTabItem.Custom && tabItem.colorHex != null) {
-                                        val dotColor = runCatching { Color(android.graphics.Color.parseColor(tabItem.colorHex)) }.getOrDefault(MaterialTheme.colorScheme.primary)
-                                        Box(
-                                            modifier = Modifier
-                                                .size(8.dp)
-                                                .clip(CircleShape)
-                                                .background(dotColor)
-                                        )
-                                        Spacer(Modifier.width(6.dp))
-                                    }
-                                    Text(
-                                        text = tabItem.title,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                    )
-                                    if (tabUnreadCount > 0) {
-                                        Spacer(Modifier.width(6.dp))
-                                        Box(
-                                            modifier = Modifier
-                                                .clip(RoundedCornerShape(10.dp))
-                                                .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
-                                                .padding(horizontal = 6.dp, vertical = 1.dp)
-                                        ) {
-                                            Text(
-                                                text = tabUnreadCount.toString(),
-                                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                                                color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                    }
-                                }
-                            },
-                            unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier
-                                .pointerInput(tabItem) {
-                                    detectTapGestures(
-                                        onTap = {
-                                            coroutineScope.launch {
-                                                pagerState.animateScrollToPage(index)
-                                            }
-                                        },
-                                        onLongPress = {
-                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                            menuExpanded = true
-                                        }
-                                    )
-                                }
-                                .semantics {
-                                    role = Role.Tab
-                                    contentDescription = "Вкладка $tabSemanticLabel"
-                                }
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(
+                            if (isPressing) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                            else Color.Transparent
                         )
+                        .pointerInput(tabItem, index) {
+                            awaitEachGesture {
+                                val down = awaitFirstDown(requireUnconsumed = false)
+                                val downPosition = down.position
+                                val touchSlop = viewConfiguration.touchSlop
+                                val startTime = System.currentTimeMillis()
+                                var holdConditionMet = false
 
-                        // Telegram context popup menu anchored to the tab
-                        DropdownMenu(
-                            expanded = menuExpanded,
-                            onDismissRequest = { menuExpanded = false },
-                            modifier = Modifier
-                                .background(MaterialTheme.colorScheme.surface)
-                                .widthIn(min = 230.dp),
-                            shape = RoundedCornerShape(16.dp)
-                        ) {
-                            val tabChats = remember(tabItem, chats) {
-                                when (tabItem) {
-                                    is ChatTabItem.All -> chats.filter { !it.isArchived && !it.isBlocked }
-                                    is ChatTabItem.Personal -> chats.filter { !it.isGroup && !it.isChannel && !it.isBot && !it.isArchived && !it.isBlocked }
-                                    is ChatTabItem.Groups -> chats.filter { it.isGroup && !it.isArchived && !it.isBlocked }
-                                    is ChatTabItem.Channels -> chats.filter { it.isChannel && !it.isArchived && !it.isBlocked }
-                                    is ChatTabItem.Bots -> chats.filter { it.isBot && !it.isArchived && !it.isBlocked }
-                                    is ChatTabItem.Custom -> chats.filter { !it.isArchived && !it.isBlocked && tabItem.folder.matches(it) }
-                                }
-                            }
-                            val isAllMuted = tabChats.isNotEmpty() && tabChats.all { it.isMuted }
+                                pressingTabIndex = index
+                                pressHoldProgress = 0f
 
-                            // 1. Изменить порядок
-                            DropdownMenuItem(
-                                text = { Text("Изменить порядок", fontWeight = FontWeight.Medium) },
-                                leadingIcon = {
-                                    Icon(Icons.Filled.SwapHoriz, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                                },
-                                onClick = {
-                                    menuExpanded = false
-                                    navController.navigate(AppDestinations.SETTINGS_FOLDERS)
-                                }
-                            )
-
-                            // 2. Настроить папку
-                            DropdownMenuItem(
-                                text = { Text(if (tabItem is ChatTabItem.Custom) "Настроить папку" else "Настроить папки", fontWeight = FontWeight.Medium) },
-                                leadingIcon = {
-                                    Icon(Icons.Filled.Tune, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                                },
-                                onClick = {
-                                    menuExpanded = false
-                                    if (tabItem is ChatTabItem.Custom) {
-                                        navController.navigate("${AppDestinations.SETTINGS_FOLDER_EDIT}?folderId=${tabItem.folder.id}")
-                                    } else {
-                                        navController.navigate(AppDestinations.SETTINGS_FOLDERS)
-                                    }
-                                }
-                            )
-
-                            // 3. Вкл./Выкл. уведомления
-                            DropdownMenuItem(
-                                text = { Text(if (isAllMuted) "Вкл. уведомления" else "Выкл. уведомления", fontWeight = FontWeight.Medium) },
-                                leadingIcon = {
-                                    Icon(
-                                        if (isAllMuted) Icons.Filled.Notifications else Icons.Filled.NotificationsOff,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                },
-                                onClick = {
-                                    menuExpanded = false
-                                    val newMuteState = !isAllMuted
-                                    viewModel.toggleChatsMute(tabChats.map { it.id }, newMuteState)
-                                    Toast.makeText(
-                                        context,
-                                        if (newMuteState) "Уведомления для папки отключены" else "Уведомления для папки включены",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                }
-                            )
-
-                            // 4. Прочитать все
-                            DropdownMenuItem(
-                                text = { Text("Прочитать все", fontWeight = FontWeight.Medium) },
-                                leadingIcon = {
-                                    Icon(Icons.Default.DoneAll, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                                },
-                                onClick = {
-                                    menuExpanded = false
-                                    val unreadIds = tabChats.filter { it.unreadCount > 0 }.map { it.id }
-                                    viewModel.markChatsAsRead(unreadIds.ifEmpty { tabChats.map { it.id } }, currentUserId)
-                                    Toast.makeText(context, "Все чаты в папке прочитаны", Toast.LENGTH_SHORT).show()
-                                }
-                            )
-
-                            // 5. Поделиться
-                            DropdownMenuItem(
-                                text = { Text("Поделиться", fontWeight = FontWeight.Medium) },
-                                leadingIcon = {
-                                    Icon(Icons.Filled.Share, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                                },
-                                onClick = {
-                                    menuExpanded = false
-                                    if (tabItem is ChatTabItem.Custom) {
-                                        showShareFolderDialog = tabItem.folder
-                                    } else {
-                                        val sendIntent = Intent(Intent.ACTION_SEND).apply {
-                                            putExtra(Intent.EXTRA_TEXT, "Присоединяйтесь ко мне в KuoteX Messenger: https://kuotex.me")
-                                            type = "text/plain"
+                                // Exact 2-second (2000 ms) timer response system
+                                val timerJob = coroutineScope.launch {
+                                    val totalDurationMs = 2000L
+                                    val stepMs = 40L
+                                    var elapsedMs = 0L
+                                    while (elapsedMs < totalDurationMs) {
+                                        delay(stepMs)
+                                        elapsedMs += stepMs
+                                        if (pressingTabIndex == index) {
+                                            pressHoldProgress = (elapsedMs.toFloat() / totalDurationMs).coerceIn(0f, 1f)
                                         }
-                                        context.startActivity(Intent.createChooser(sendIntent, "Поделиться"))
+                                    }
+                                    // 2-SECOND CONDITION IS MET!
+                                    holdConditionMet = true
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    activeMenuTab = tabItem
+                                    pressingTabIndex = null
+                                    pressHoldProgress = 0f
+                                }
+
+                                var pointerUp: PointerInputChange? = null
+                                while (true) {
+                                    val event = awaitPointerEvent()
+                                    val currentChange = event.changes.firstOrNull { it.id == down.id } ?: break
+
+                                    // Condition Check: If moved beyond touch slop, user is scrolling tabs
+                                    val distance = (currentChange.position - downPosition).getDistance()
+                                    if (distance > touchSlop) {
+                                        timerJob.cancel()
+                                        if (pressingTabIndex == index) {
+                                            pressingTabIndex = null
+                                            pressHoldProgress = 0f
+                                        }
+                                        break
+                                    }
+
+                                    if (!currentChange.pressed) {
+                                        pointerUp = currentChange
+                                        timerJob.cancel()
+                                        if (pressingTabIndex == index) {
+                                            pressingTabIndex = null
+                                            pressHoldProgress = 0f
+                                        }
+                                        break
                                     }
                                 }
-                            )
 
-                            // 6. Удалить папку (только для кастомных папок)
-                            if (tabItem is ChatTabItem.Custom) {
-                                HorizontalDivider(
-                                    modifier = Modifier.padding(vertical = 4.dp),
-                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Удалить папку", color = Color(0xFFF44336), fontWeight = FontWeight.SemiBold) },
-                                    leadingIcon = {
-                                        Icon(Icons.Filled.Delete, contentDescription = null, tint = Color(0xFFF44336))
-                                    },
-                                    onClick = {
-                                        menuExpanded = false
-                                        showDeleteFolderDialog = tabItem.folder
+                                // If released before 2 seconds and condition was not met, this is a regular tap!
+                                if (pointerUp != null && !holdConditionMet) {
+                                    val elapsed = System.currentTimeMillis() - startTime
+                                    if (elapsed < 2000L) {
+                                        coroutineScope.launch {
+                                            pagerState.animateScrollToPage(index)
+                                        }
                                     }
-                                )
+                                }
                             }
+                        }
+                        .padding(horizontal = 14.dp, vertical = 12.dp)
+                        .semantics {
+                            role = Role.Tab
+                            selected = isSelected
+                            contentDescription = "Вкладка $tabSemanticLabel"
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            if (tabItem.emoji != null) {
+                                Text(tabItem.emoji!!, fontSize = 14.sp)
+                                Spacer(Modifier.width(4.dp))
+                            } else if (tabItem is ChatTabItem.Custom && tabItem.colorHex != null) {
+                                val dotColor = runCatching { Color(android.graphics.Color.parseColor(tabItem.colorHex)) }.getOrDefault(MaterialTheme.colorScheme.primary)
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(dotColor)
+                                )
+                                Spacer(Modifier.width(6.dp))
+                            }
+                            Text(
+                                text = tabItem.title,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            if (tabUnreadCount > 0) {
+                                Spacer(Modifier.width(6.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
+                                        .padding(horizontal = 6.dp, vertical = 1.dp)
+                                ) {
+                                    Text(
+                                        text = tabUnreadCount.toString(),
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+
+                        // Animated progress indicator during 2-second hold
+                        if (isPressing && pressHoldProgress > 0.05f) {
+                            Spacer(Modifier.height(3.dp))
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(pressHoldProgress)
+                                    .height(2.dp)
+                                    .clip(RoundedCornerShape(1.dp))
+                                    .background(MaterialTheme.colorScheme.primary)
+                            )
                         }
                     }
                 }
-            }
-
-            IconButton(
-                onClick = { navController.navigate(AppDestinations.SETTINGS_FOLDERS) },
-                modifier = Modifier
-                    .padding(end = 4.dp)
-                    .size(36.dp)
-            ) {
-                Icon(
-                    Icons.Filled.FolderCopy,
-                    contentDescription = "Папки с чатами",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(20.dp)
-                )
             }
         }
 
@@ -1322,7 +1270,7 @@ fun ChatListScreen(viewModel: AppViewModel, navController: NavController, isStor
                                         Spacer(Modifier.height(16.dp))
                                         FilledTonalButton(
                                             onClick = {
-                                                navController.navigate("${AppDestinations.SETTINGS_FOLDER_EDIT}?folderId=${pageTab.folder.id}")
+                                                navController.navigate(AppDestinations.folderEditRoute(pageTab.folder.id))
                                             }
                                         ) {
                                             Icon(Icons.Filled.Tune, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -1511,6 +1459,194 @@ fun ChatListScreen(viewModel: AppViewModel, navController: NavController, isStor
                                 }
                             }
                         }
+                    }
+                }
+            }
+        }
+
+        // Telegram Folder Context Bottom Sheet (Triggered after 2 seconds hold condition)
+        if (activeMenuTab != null) {
+            val menuTab = activeMenuTab!!
+            val tabChats = remember(menuTab, chats) {
+                when (menuTab) {
+                    is ChatTabItem.All -> chats.filter { !it.isArchived && !it.isBlocked }
+                    is ChatTabItem.Personal -> chats.filter { !it.isGroup && !it.isChannel && !it.isBot && !it.isArchived && !it.isBlocked }
+                    is ChatTabItem.Groups -> chats.filter { it.isGroup && !it.isArchived && !it.isBlocked }
+                    is ChatTabItem.Channels -> chats.filter { it.isChannel && !it.isArchived && !it.isBlocked }
+                    is ChatTabItem.Bots -> chats.filter { it.isBot && !it.isArchived && !it.isBlocked }
+                    is ChatTabItem.Custom -> chats.filter { !it.isArchived && !it.isBlocked && menuTab.folder.matches(it) }
+                }
+            }
+            val isAllMuted = tabChats.isNotEmpty() && tabChats.all { it.isMuted }
+
+            ModalBottomSheet(
+                onDismissRequest = { activeMenuTab = null },
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.onSurface,
+                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                dragHandle = { BottomSheetDefaults.DragHandle() }
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp)
+                        .padding(bottom = 32.dp)
+                ) {
+                    // Header with Folder Icon/Emoji, Title, and Chat Count
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (menuTab.emoji != null) {
+                                Text(menuTab.emoji!!, fontSize = 22.sp)
+                            } else if (menuTab is ChatTabItem.Custom && menuTab.colorHex != null) {
+                                val dotColor = runCatching { Color(android.graphics.Color.parseColor(menuTab.colorHex)) }.getOrDefault(MaterialTheme.colorScheme.primary)
+                                Box(
+                                    modifier = Modifier
+                                        .size(20.dp)
+                                        .clip(CircleShape)
+                                        .background(dotColor)
+                                )
+                            } else {
+                                Icon(
+                                    Icons.Filled.Folder,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(Modifier.width(14.dp))
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = menuTab.title,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            val unreadInFolder = tabChats.sumOf { it.unreadCount }
+                            Text(
+                                text = "${tabChats.size} чатов" + if (unreadInFolder > 0) " • $unreadInFolder непрочитанных" else "",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        IconButton(onClick = { activeMenuTab = null }) {
+                            Icon(
+                                Icons.Filled.Close,
+                                contentDescription = "Закрыть",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+
+                    // 1. Изменить порядок
+                    FolderMenuActionItem(
+                        icon = Icons.Filled.SwapHoriz,
+                        title = "Изменить порядок",
+                        subtitle = "Переместить или скрыть вкладки папок",
+                        onClick = {
+                            activeMenuTab = null
+                            navController.navigate(AppDestinations.SETTINGS_FOLDERS)
+                        }
+                    )
+
+                    // 2. Настроить папку
+                    FolderMenuActionItem(
+                        icon = Icons.Filled.Tune,
+                        title = if (menuTab is ChatTabItem.Custom) "Настроить папку" else "Настроить папки",
+                        subtitle = if (menuTab is ChatTabItem.Custom) "Редактировать фильтры и чаты" else "Управление всеми папками",
+                        onClick = {
+                            activeMenuTab = null
+                            if (menuTab is ChatTabItem.Custom) {
+                                navController.navigate(AppDestinations.folderEditRoute(menuTab.folder.id))
+                            } else {
+                                navController.navigate(AppDestinations.SETTINGS_FOLDERS)
+                            }
+                        }
+                    )
+
+                    // 3. Выкл./Вкл. уведомления
+                    FolderMenuActionItem(
+                        icon = if (isAllMuted) Icons.Filled.Notifications else Icons.Filled.NotificationsOff,
+                        title = if (isAllMuted) "Вкл. уведомления" else "Выкл. уведомления",
+                        subtitle = if (isAllMuted) "Включить звук для чатов этой папки" else "Отключить звук для чатов этой папки",
+                        onClick = {
+                            activeMenuTab = null
+                            val newMuteState = !isAllMuted
+                            viewModel.toggleChatsMute(tabChats.map { it.id }, newMuteState)
+                            Toast.makeText(
+                                context,
+                                if (newMuteState) "Уведомления для папки отключены" else "Уведомления для папки включены",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    )
+
+                    // 4. Прочитать все
+                    FolderMenuActionItem(
+                        icon = Icons.Default.DoneAll,
+                        title = "Прочитать все",
+                        subtitle = "Сбросить счетчики непрочитанных сообщений",
+                        onClick = {
+                            activeMenuTab = null
+                            val unreadIds = tabChats.filter { it.unreadCount > 0 }.map { it.id }
+                            viewModel.markChatsAsRead(unreadIds.ifEmpty { tabChats.map { it.id } }, currentUserId)
+                            Toast.makeText(context, "Все чаты в папке прочитаны", Toast.LENGTH_SHORT).show()
+                        }
+                    )
+
+                    // 5. Поделиться
+                    FolderMenuActionItem(
+                        icon = Icons.Filled.Share,
+                        title = "Поделиться",
+                        subtitle = "Создать ссылку-приглашение на папку",
+                        onClick = {
+                            activeMenuTab = null
+                            if (menuTab is ChatTabItem.Custom) {
+                                showShareFolderDialog = menuTab.folder
+                            } else {
+                                val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                    putExtra(Intent.EXTRA_TEXT, "Присоединяйтесь ко мне в KuoteX Messenger: https://kuotex.me")
+                                    type = "text/plain"
+                                }
+                                context.startActivity(Intent.createChooser(sendIntent, "Поделиться"))
+                            }
+                        }
+                    )
+
+                    // 6. Удалить папку (для кастомных папок)
+                    if (menuTab is ChatTabItem.Custom) {
+                        HorizontalDivider(
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        )
+                        FolderMenuActionItem(
+                            icon = Icons.Filled.Delete,
+                            title = "Удалить папку",
+                            subtitle = "Папка будет удалена, чаты останутся в общем списке",
+                            isDestructive = true,
+                            onClick = {
+                                activeMenuTab = null
+                                showDeleteFolderDialog = menuTab.folder
+                            }
+                        )
                     }
                 }
             }
@@ -3270,6 +3406,17 @@ fun AccountDrawerContent(viewModel: AppViewModel, onCloseDrawer: () -> Unit, nav
             }
             item {
                 NavigationDrawerItem(
+                    icon = { Icon(Icons.Filled.Folder, "Папки с чатами") },
+                    label = { Text("Папки с чатами") },
+                    selected = false,
+                    onClick = { 
+                        navController.navigate(AppDestinations.SETTINGS_FOLDERS)
+                        onCloseDrawer() 
+                    }
+                )
+            }
+            item {
+                NavigationDrawerItem(
                     icon = { Icon(Icons.Filled.Settings, "Settings") },
                     label = { Text("Settings") },
                     selected = false,
@@ -3663,3 +3810,56 @@ fun ArchiveSettingsScreen(navController: NavController) {
         }
     }
 }
+
+@Composable
+private fun FolderMenuActionItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String? = null,
+    isDestructive: Boolean = false,
+    onClick: () -> Unit
+) {
+    val contentColor = if (isDestructive) Color(0xFFF44336) else MaterialTheme.colorScheme.onSurface
+    val iconColor = if (isDestructive) Color(0xFFF44336) else MaterialTheme.colorScheme.primary
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(iconColor.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = iconColor,
+                modifier = Modifier.size(22.dp)
+            )
+        }
+        Spacer(Modifier.width(14.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = contentColor
+            )
+            if (subtitle != null) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (isDestructive) Color(0xFFF44336).copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+

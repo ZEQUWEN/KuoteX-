@@ -65,6 +65,7 @@ object AppDestinations {
     const val SETTINGS_BATTERY = "settings/battery?highlightId={highlightId}"
     const val SETTINGS_FOLDERS = "settings/folders"
     const val SETTINGS_FOLDER_EDIT = "settings/folders/edit?folderId={folderId}"
+    fun folderEditRoute(folderId: String? = null) = if (folderId != null) "settings/folders/edit?folderId=$folderId" else "settings/folders/edit"
     const val SETTINGS_PRIVACY = "settings/privacy/{title}"
     const val CHAT = "chat/{chatId}"
     const val CALL = "call/{chatId}?isVideo={isVideo}"
